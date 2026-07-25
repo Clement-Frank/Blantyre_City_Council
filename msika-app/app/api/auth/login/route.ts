@@ -70,28 +70,26 @@ export async function POST(request: NextRequest) {
 
       const collector = await prisma.collector.findUnique({
         where: { username: normalizedUsername },
-        include: { role: true },
       });
 
       if (collector) {
         dbUser = collector;
-        role = collector.role.role_name;
+        role = 'Collector';
       }
 
       if (!dbUser) {
         const supervisor = await prisma.supervisor.findUnique({
           where: { username: normalizedUsername },
-          include: { role: true },
         });
 
         if (supervisor) {
           dbUser = supervisor;
-          role = supervisor.role.role_name;
+          role = 'Supervisor';
         }
       }
 
       if (!dbUser) {
-        const admin = await prisma.administrator.findUnique({
+        const admin = await prisma.user.findUnique({
           where: { username: normalizedUsername },
           include: { role: true },
         });

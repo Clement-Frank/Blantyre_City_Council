@@ -6,157 +6,299 @@ datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// TENANCY & ORGANIZATION
+// ==========================================
+model Council {
+  council_id    Int         @id @default(autoincrement())
+  name          String      @db.VarChar(150)
+  district      String      @db.VarChar(100)
+  city          String      @db.VarChar(100)
+  logo_url      String?     @db.VarChar(255)
+  contact_email String?     @db.VarChar(100)
+  contact_phone String?     @db.VarChar(20)
+  is_active     Boolean     @default(true)
+  created_at    DateTime    @default(now())
+  sub_offices   SubOffice[]
+  markets       Market[]
+  users         User[]
+  businesses    Business[]
+  business_types BusinessType[]
+  api_clients   ApiClient[]
+  audit_logs    AuditLog[]
+  collectors    Collector[]
+  supervisors   Supervisor[]
+}
+
 model SubOffice {
-  sub_office_id     Int              @id @default(autoincrement())
-  name              String           @db.VarChar(100)
-  location          String           @db.VarChar(150)
-  markets           Market[]
-  collectors        Collector[]
-  supervisors       Supervisor[]
+  sub_office_id Int       @id @default(autoincrement())
+  council_id    Int
+  council       Council   @relation(fields: [council_id], references: [council_id], onDelete: Cascade)
+  name          String    @db.VarChar(100)
+  location      String    @db.VarChar(150)
+  markets       Market[]
+  collectors    Collector[]
+  supervisors   Supervisor[]
   revenue_summaries RevenueSummary[]
 }
 
 model Market {
-  market_id         Int              @id @default(autoincrement())
-  sub_office_id     Int
-  sub_office        SubOffice        @relation(fields: [sub_office_id], references: [sub_office_id])
-  name              String           @db.VarChar(100)
-  location          String           @db.VarChar(150)
-  sections          MarketSection[]
-  vendors           Vendor[]
+  market_id     Int           @id @default(autoincrement())
+  council_id    Int
+  council       Council       @relation(fields: [council_id], references: [council_id], onDelete: Cascade)
+  sub_office_id Int
+  sub_office    SubOffice     @relation(fields: [sub_office_id], references: [sub_office_id])
+  name          String        @db.VarChar(100)
+  location      String        @db.VarChar(150)
+  sections      MarketSection[]
+  businesses    Business[]
   revenue_summaries RevenueSummary[]
 }
 
 model MarketSection {
-  section_id   Int     @id @default(autoincrement())
+  section_id   Int        @id @default(autoincrement())
   market_id    Int
-  market       Market  @relation(fields: [market_id], references: [market_id])
-  section_name String  @db.VarChar(100)
-  vendors      Vendor[]
+  market       Market     @relation(fields: [market_id], references: [market_id], onDelete: Cascade)
+  section_name String     @db.VarChar(100)
+  businesses   Business[]
 }
 
+// ==========================================
+// USERS & RBAC
+// ==========================================
 model Role {
-  role_id        Int             @id @default(autoincrement())
-  role_name      String          @unique @db.VarChar(50)
-  collectors     Collector[]
-  supervisors    Supervisor[]
-  administrators Administrator[]
-  audit_logs     AuditLog[]
+  role_id     Int          @id @default(autoincrement())
+  role_name   String       @unique @db.VarChar(50)
+  description String?      @db.VarChar(255)
+  users       User[]
+  permissions Permission[]
+}
+
+model Permission {
+  permission_id Int    @id @default(autoincrement())
+  role_id       Int
+  role          Role   @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  resource      String @db.VarChar(50)  // e.g. "business", "payment", "report"
+  action        String @db.VarChar(50)  // e.g. "create", "read", "update", "delete"
+}
+
+model User {
+  user_id       Int       @id @default(autoincrement())
+  council_id    Int?
+  council       Council?  @relation(fields: [council_id], references: [council_id])
+  role_id       Int
+  role          Role      @relation(fields: [role_id], references: [role_id])
+  full_name     String    @db.VarChar(100)
+  email         String?   @db.VarChar(100)
+  username      String    @unique @db.VarChar(50)
+  password_hash String    @db.VarChar(255)
+  mobile_number String?   @db.VarChar(20)
+  is_active     Boolean   @default(true)
+  last_login    DateTime?
+  created_at    DateTime  @default(now())
+  audit_logs    AuditLog[]
 }
 
 model Collector {
-  collector_id    Int       @id @default(autoincrement())
-  role_id         Int
-  role            Role      @relation(fields: [role_id], references: [role_id])
-  sub_office_id   Int?
-  sub_office      SubOffice? @relation(fields: [sub_office_id], references: [sub_office_id])
-  full_name       String    @db.VarChar(100)
-  mobile_number   String    @db.VarChar(20)
-  username        String    @unique @db.VarChar(50)
-  password_hash   String    @db.VarChar(255)
-  vendors         Vendor[]
-  payments        Payment[]
+  collector_id  Int       @id @default(autoincrement())
+  council_id    Int
+  council       Council   @relation(fields: [council_id], references: [council_id])
+  sub_office_id Int?
+  sub_office    SubOffice? @relation(fields: [sub_office_id], references: [sub_office_id])
+  full_name     String    @db.VarChar(100)
+  mobile_number String    @db.VarChar(20)
+  username      String    @unique @db.VarChar(50)
+  password_hash String    @db.VarChar(255)
+  is_active     Boolean   @default(true)
+  businesses    Business[]
+  payments      Payment[]
 }
 
 model Supervisor {
   supervisor_id Int       @id @default(autoincrement())
-  role_id       Int
-  role          Role      @relation(fields: [role_id], references: [role_id])
+  council_id    Int
+  council       Council   @relation(fields: [council_id], references: [council_id])
   sub_office_id Int?
   sub_office    SubOffice? @relation(fields: [sub_office_id], references: [sub_office_id])
   full_name     String    @db.VarChar(100)
   username      String    @unique @db.VarChar(50)
   password_hash String    @db.VarChar(255)
+  is_active     Boolean   @default(true)
 }
 
-model Administrator {
-  admin_id      Int    @id @default(autoincrement())
-  role_id       Int
-  role          Role   @relation(fields: [role_id], references: [role_id])
-  full_name     String @db.VarChar(100)
-  username      String @unique @db.VarChar(50)
-  password_hash String @db.VarChar(255)
+// ==========================================
+// BUSINESS REGISTRATION (Expanded)
+// ==========================================
+model BusinessType {
+  business_type_id Int        @id @default(autoincrement())
+  council_id       Int?
+  council          Council?   @relation(fields: [council_id], references: [council_id])
+  name             String     @db.VarChar(100)
+  description      String?    @db.VarChar(255)
+  fee_amount       Decimal    @db.Decimal(10, 2)
+  businesses       Business[]
 }
 
-model Vendor {
-  vendor_id                Int            @id @default(autoincrement())
-  vendor_code              String         @unique @db.VarChar(20)
-  market_id                Int
-  market                   Market         @relation(fields: [market_id], references: [market_id])
-  section_id               Int?
-  section                  MarketSection? @relation(fields: [section_id], references: [section_id])
+model Business {
+  business_id        Int           @id @default(autoincrement())
+  vendor_number      String        @unique @db.VarChar(20)
+  council_id         Int
+  council            Council       @relation(fields: [council_id], references: [council_id])
+  market_id          Int
+  market             Market        @relation(fields: [market_id], references: [market_id])
+  section_id         Int?
+  section            MarketSection? @relation(fields: [section_id], references: [section_id])
+  business_type_id   Int
+  business_type      BusinessType  @relation(fields: [business_type_id], references: [business_type_id])
   registered_by_collector_id Int?
-  registered_by            Collector?     @relation(fields: [registered_by_collector_id], references: [collector_id])
-  full_name                String         @db.VarChar(100)
-  mobile_number            String         @db.VarChar(20)
-  qr_code                  String?        @db.VarChar(255)
-  status                   VendorStatus   @default(Active)
-  date_registered          DateTime       @default(now())
-  payments                 Payment[]
+  registered_by      Collector?    @relation(fields: [registered_by_collector_id], references: [collector_id])
+  
+  business_name      String        @db.VarChar(150)
+  owner_name         String        @db.VarChar(100)
+  phone_number       String        @db.VarChar(20)
+  national_id        String?       @db.VarChar(50)
+  email              String?       @db.VarChar(100)
+  
+  block              String?       @db.VarChar(20)
+  stall_number       String?       @db.VarChar(20)
+  gps_latitude       Decimal?      @db.Decimal(10, 8)
+  gps_longitude      Decimal?      @db.Decimal(11, 8)
+  
+  preferred_wallet   String        @db.VarChar(20)
+  wallet_number      String        @db.VarChar(20)
+  
+  status             BusinessStatus @default(Pending)
+  registration_date  DateTime      @default(now())
+  payments           Payment[]
 }
 
-enum VendorStatus {
+enum BusinessStatus {
+  Pending
   Active
   Suspended
   Inactive
 }
 
-model FeeType {
-  fee_type_id Int       @id @default(autoincrement())
-  name        String    @db.VarChar(50)
-  amount      Decimal   @db.Decimal(10, 2)
-  description String?   @db.VarChar(255)
-  payments    Payment[]
-}
-
-model PaymentStatus {
-  status_id   Int       @id @default(autoincrement())
-  status_name String    @unique @db.VarChar(30)
-  payments    Payment[]
-}
-
+// ==========================================
+// PAYMENTS
+// ==========================================
 model Payment {
-  payment_id               Int           @id @default(autoincrement())
-  vendor_id                Int
-  vendor                   Vendor        @relation(fields: [vendor_id], references: [vendor_id])
-  fee_type_id              Int
-  fee_type                 FeeType       @relation(fields: [fee_type_id], references: [fee_type_id])
-  status_id                Int
-  status                   PaymentStatus @relation(fields: [status_id], references: [status_id])
-  verified_by_collector_id Int?
-  verified_by              Collector?    @relation(fields: [verified_by_collector_id], references: [collector_id])
-  transaction_ref          String?       @db.VarChar(50)
-  amount                   Decimal       @db.Decimal(10, 2)
-  payment_channel          PaymentChannel
-  payment_date             DateTime      @default(now())
+  payment_id         Int           @id @default(autoincrement())
+  business_id        Int
+  business           Business      @relation(fields: [business_id], references: [business_id])
+  collector_id       Int?
+  collector          Collector?    @relation(fields: [collector_id], references: [collector_id])
+  
+  amount             Decimal       @db.Decimal(10, 2)
+  fee_type           String        @db.VarChar(50)
+  payment_channel    PaymentChannel
+  transaction_ref    String?       @unique @db.VarChar(100)
+  provider_ref       String?       @db.VarChar(100)
+  
+  status             PaymentStatus @default(Pending)
+  paid_at            DateTime?
+  created_at         DateTime      @default(now())
+  
+  sms_sent           Boolean       @default(false)
+  receipt_generated  Boolean       @default(false)
 }
 
 enum PaymentChannel {
-  USSD
   AirtelMoney
   TNMMpamba
+  USSD
+  Bank
+  Cash
 }
 
+enum PaymentStatus {
+  Pending
+  Completed
+  Failed
+  Reversed
+  Refunded
+}
+
+// ==========================================
+// API CLIENTS (External Service Providers)
+// ==========================================
+model ApiClient {
+  api_client_id  Int       @id @default(autoincrement())
+  council_id     Int?
+  council        Council?  @relation(fields: [council_id], references: [council_id])
+  name           String    @db.VarChar(100)
+  contact_email  String    @db.VarChar(100)
+  contact_phone  String?   @db.VarChar(20)
+  is_active      Boolean   @default(true)
+  created_at     DateTime  @default(now())
+  api_keys       ApiKey[]
+}
+
+model ApiKey {
+  api_key_id     Int       @id @default(autoincrement())
+  api_client_id  Int
+  api_client     ApiClient @relation(fields: [api_client_id], references: [api_client_id], onDelete: Cascade)
+  key_hash       String    @db.VarChar(255)
+  name           String    @db.VarChar(50)
+  permissions    String    @db.VarChar(255)  // JSON string of allowed endpoints
+  rate_limit     Int       @default(1000)
+  last_used_at   DateTime?
+  expires_at     DateTime?
+  is_active      Boolean   @default(true)
+  created_at     DateTime  @default(now())
+}
+
+// ==========================================
+// REVENUE & REPORTING
+// ==========================================
 model RevenueSummary {
   summary_id         Int       @id @default(autoincrement())
-  market_id          Int
-  market             Market    @relation(fields: [market_id], references: [market_id])
+  council_id         Int
   sub_office_id      Int
   sub_office         SubOffice @relation(fields: [sub_office_id], references: [sub_office_id])
+  market_id          Int
+  market             Market    @relation(fields: [market_id], references: [market_id])
   summary_date       DateTime  @db.Date
   total_amount       Decimal   @db.Decimal(12, 2)
   total_transactions Int
-
+  successful_count   Int       @default(0)
+  failed_count       Int       @default(0)
+  
   @@unique([market_id, summary_date])
 }
 
+// ==========================================
+// AUDIT LOGS (Security & Compliance)
+// ==========================================
 model AuditLog {
-  log_id          Int      @id @default(autoincrement())
-  user_id         Int
-  role_id         Int
-  role            Role     @relation(fields: [role_id], references: [role_id])
-  action          String   @db.VarChar(150)
-  entity_affected String   @db.VarChar(100)
-  timestamp       DateTime @default(now())
-  ip_address      String   @db.VarChar(45)
+  log_id        Int       @id @default(autoincrement())
+  council_id    Int?
+  council       Council?  @relation(fields: [council_id], references: [council_id])
+  user_id       Int?
+  user          User?     @relation(fields: [user_id], references: [user_id])
+  actor_type    String    @db.VarChar(20)  // "User", "ApiClient", "System"
+  actor_id      Int?
+  actor_name    String    @db.VarChar(100)
+  action        String    @db.VarChar(50)  // "CREATE", "UPDATE", "DELETE", "LOGIN", "PAYMENT"
+  resource      String    @db.VarChar(50)  // "Business", "Payment", "User"
+  resource_id   String?   @db.VarChar(50)
+  details       String?   @db.Text
+  ip_address    String?   @db.VarChar(45)
+  user_agent    String?   @db.Text
+  timestamp     DateTime  @default(now())
+}
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+model Notification {
+  notification_id Int      @id @default(autoincrement())
+  recipient_type  String   @db.VarChar(20)  // "Business", "User"
+  recipient_id    Int
+  type            String   @db.VarChar(30)  // "SMS", "Email", "Push"
+  channel         String   @db.VarChar(20)  // "Payment", "Registration", "Reminder"
+  status          String   @db.VarChar(20)  @default("Pending")
+  content         String   @db.Text
+  sent_at         DateTime?
+  created_at      DateTime @default(now())
 }

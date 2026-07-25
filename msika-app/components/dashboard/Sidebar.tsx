@@ -13,20 +13,23 @@ import {
   BarChart3,
   Settings,
   Menu,
+  MapPin,
+  Key,
   X,
   LogOut,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hook/useAuth";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Businesses", href: "/dashboard/businesses", icon: Store }, // NEW
   { label: "Vendors", href: "/dashboard/vendors", icon: Users },
   { label: "Payments", href: "/dashboard/payments", icon: Receipt },
   { label: "Collectors", href: "/dashboard/collectors", icon: UserCheck },
   { label: "Supervisors", href: "/dashboard/supervisors", icon: Shield },
-  { label: "Markets", href: "/dashboard/markets", icon: Store },
+  { label: "Markets", href: "/dashboard/markets", icon: MapPin },
   {
     label: "Reports",
     href: "/dashboard/reports",
@@ -39,6 +42,8 @@ const navItems = [
       { label: "Revenue", href: "/dashboard/reports/revenue" },
     ],
   },
+  { label: "API Management", href: "/dashboard/api-management", icon: Key }, // NEW
+  { label: "Audit Logs", href: "/dashboard/audit-logs", icon: Shield }, // NEW
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

@@ -14,28 +14,28 @@ export async function GET() {
     today.setHours(0, 0, 0, 0);
 
     const [
-      totalVendors,
+      totalBusinesses,
       totalPaymentsToday,
       totalRevenueToday,
     ] = await Promise.all([
-      prisma.vendor.count(),
+      prisma.business.count(),
       prisma.payment.count({
         where: {
-          payment_date: { gte: today },
-          status_id: 2, // Assuming 2 = Completed
+          created_at: { gte: today },
+          status: "Completed",
         },
       }),
       prisma.payment.aggregate({
         where: {
-          payment_date: { gte: today },
-          status_id: 2,
+          created_at: { gte: today },
+          status: "Completed",
         },
         _sum: { amount: true },
       }),
     ]);
 
     return NextResponse.json({
-      totalVendors,
+      totalBusinesses,
       totalPaymentsToday,
       totalRevenueToday: totalRevenueToday._sum.amount || 0,
     });

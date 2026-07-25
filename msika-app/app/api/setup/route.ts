@@ -21,18 +21,22 @@ export async function GET() {
       return NextResponse.json({ error: 'Role not found' }, { status: 500 });
     }
 
-    const existing = await prisma.administrator.findUnique({
+    const existing = await prisma.user.findUnique({
       where: { username: 'admin' },
     });
 
     if (!existing) {
       const hash = await bcrypt.hash('password123', 10);
-      await prisma.administrator.create({
+      await prisma.user.create({
         data: {
           username: 'admin',
           password_hash: hash,
           full_name: 'System Administrator',
           role_id: adminRole.role_id,
+          council_id: null,
+          email: null,
+          mobile_number: null,
+          is_active: true,
         },
       });
     }

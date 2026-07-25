@@ -1,6 +1,6 @@
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider } from "@/hook/useAuth";
 import AuthGuard from "@/components/dashboard/AuthGuard";
 
 export default function DashboardLayout({

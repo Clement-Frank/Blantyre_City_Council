@@ -19,10 +19,11 @@ const trendData = [
   { week: "Week 12", revenue: 1750000, target: 1300000 },
 ];
 
-const formatCurrency = (value: number) => {
-  if (value >= 1000000) return `MWK ${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `MWK ${(value / 1000).toFixed(0)}K`;
-  return `MWK ${value}`;
+const formatCurrency = (value: number | string | undefined) => {
+  const numericValue = typeof value === "number" ? value : Number(value ?? 0);
+  if (numericValue >= 1000000) return `MWK ${(numericValue / 1000000).toFixed(1)}M`;
+  if (numericValue >= 1000) return `MWK ${(numericValue / 1000).toFixed(0)}K`;
+  return `MWK ${numericValue}`;
 };
 
 export default function RevenueTrendsPage() {
@@ -100,7 +101,7 @@ export default function RevenueTrendsPage() {
               <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={formatCurrency} width={80} />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(value), ""]}
+                formatter={(value) => [formatCurrency(value as number | string | undefined), ""]}
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "12px" }}
               />
               <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }} iconType="circle" iconSize={8} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, Bell, Calendar } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hook/useAuth";
 
 export default function Header() {
   const { user } = useAuth();
