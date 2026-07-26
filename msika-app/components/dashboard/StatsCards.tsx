@@ -1,51 +1,45 @@
 "use client";
 
-import { ArrowUpRight, CircleDollarSign, Users, ReceiptText } from "lucide-react";
+import { Wallet, Users, Receipt, ShieldCheck, TrendingUp, TrendingDown } from "lucide-react";
+import { statsData } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
 
-const stats = [
-  {
-    label: "Revenue Collected",
-    value: "MWK 2.4M",
-    change: "+12.4%",
-    icon: CircleDollarSign,
-  },
-  {
-    label: "Active Vendors",
-    value: "1,284",
-    change: "+8.1%",
-    icon: Users,
-  },
-  {
-    label: "Payments Verified",
-    value: "842",
-    change: "+5.6%",
-    icon: ReceiptText,
-  },
-];
+const iconMap: Record<string, React.ElementType> = {
+  wallet: Wallet,
+  users: Users,
+  receipt: Receipt,
+  shield: ShieldCheck,
+};
 
 export default function StatsCards() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      {statsData.map((stat, idx) => {
+        const Icon = iconMap[stat.icon];
+        const isUp = stat.trend === "up";
+
         return (
           <div
-            key={stat.label}
-            className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm"
+            key={idx}
+            className="bg-white rounded-2xl p-6 border border-[#E5E5E0] shadow-sm hover:shadow-md transition-shadow"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">{stat.label}</p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900">{stat.value}</p>
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-[#F5F5F0] rounded-xl">
+                <Icon size={20} className="text-[#0E0E0B]" />
               </div>
-              <div className="rounded-xl bg-[#eef5f1] p-3 text-[#3d5a45]">
-                <Icon size={18} />
+              <div
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
+                  isUp ? "bg-[#AFE607]/15 text-[#0E0E0B]" : "bg-red-50 text-red-600"
+                )}
+              >
+                {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {isUp ? "+" : ""}
+                {stat.subtext.split(" ")[0].replace(/[+%]/g, "")}%
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-1 text-sm font-medium text-emerald-600">
-              <ArrowUpRight size={14} />
-              {stat.change}
-            </div>
+            <h3 className="text-2xl font-bold text-[#0E0E0B] mb-1">{stat.value}</h3>
+            <p className="text-xs text-gray-500">{stat.subtext}</p>
           </div>
         );
       })}

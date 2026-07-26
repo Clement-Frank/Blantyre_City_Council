@@ -1,6 +1,6 @@
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
-import { AuthProvider } from "@/hook/useAuth";
+import { AuthProvider } from "@/hooks/useAuth";
 import AuthGuard from "@/components/dashboard/AuthGuard";
 
 export default function DashboardLayout({
@@ -11,7 +11,7 @@ export default function DashboardLayout({
   return (
     <AuthProvider>
       <AuthGuard>
-        <div className="min-h-screen bg-[#f6f8f7] flex">
+        <div className="min-h-screen bg-[#FAFAF8] flex">
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <Header />
