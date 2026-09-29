@@ -1,24 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Plus, Phone, MapPin, MoreHorizontal, UserCheck, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Plus, Phone, MapPin, UserCheck, TrendingUp, Wallet } from "lucide-react";
 import Link from "next/link";
 
-const collectors = [
-  { id: 1, name: "John Phiri", username: "j.phiri", mobile: "0881234567", subOffice: "Limbe", market: "Limbe Market", vendorsRegistered: 145, paymentsVerified: 432, status: "Active" },
-  { id: 2, name: "Alice Banda", username: "a.banda", mobile: "0999876543", subOffice: "Limbe", market: "Limbe Market", vendorsRegistered: 132, paymentsVerified: 389, status: "Active" },
-  { id: 3, name: "Mercy Chirwa", username: "m.chirwa", mobile: "0884567890", subOffice: "Ntonda", market: "Mpemba Market", vendorsRegistered: 198, paymentsVerified: 567, status: "Active" },
-  { id: 4, name: "Kelvin Ngwira", username: "k.ngwira", mobile: "0992345678", subOffice: "Ndirande", market: "Chadzunda Market", vendorsRegistered: 89, paymentsVerified: 234, status: "On Leave" },
-];
+interface Collector {
+  collector_id: number;
+  full_name: string;
+  username: string;
+  mobile_number: string;
+  sub_office: string | null;
+  vendors_registered: number;
+  payments_recorded: number;
+  cash_collected: number;
+  is_active: boolean;
+}
 
 export default function CollectorsPage() {
+  const [collectors, setCollectors] = useState<Collector[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/collectors")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCollectors(d?.collectors || []))
+      .catch(() => setCollectors([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = collectors.filter(
     (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.full_name.toLowerCase().includes(search.toLowerCase()) ||
       c.username.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalVendors = collectors.reduce((s, c) => s + c.vendors_registered, 0);
+  const totalPayments = collectors.reduce((s, c) => s + c.payments_recorded, 0);
 
   return (
     <div className="space-y-6 max-w-[1600px]">
@@ -37,37 +55,31 @@ export default function CollectorsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
-              <UserCheck size={20} className="text-[#3d5a45]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">12</p>
-              <p className="text-xs text-gray-500">Active Collectors</p>
-            </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
+            <UserCheck size={20} className="text-[#3d5a45]" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-800">{collectors.filter((c) => c.is_active).length}</p>
+            <p className="text-xs text-gray-500">Active Collectors</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
-              <TrendingUp size={20} className="text-[#3d5a45]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">564</p>
-              <p className="text-xs text-gray-500">Vendors Registered Today</p>
-            </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
+            <TrendingUp size={20} className="text-[#3d5a45]" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-800">{totalVendors}</p>
+            <p className="text-xs text-gray-500">Vendors Registered</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
-              <UserCheck size={20} className="text-[#3d5a45]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">1,632</p>
-              <p className="text-xs text-gray-500">Payments Verified Today</p>
-            </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#e8f0ec] flex items-center justify-center">
+            <Wallet size={20} className="text-[#3d5a45]" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-800">{totalPayments.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">Payments Recorded</p>
           </div>
         </div>
       </div>
@@ -92,55 +104,61 @@ export default function CollectorsPage() {
               <tr className="bg-gray-50/50">
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Collector</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Contact</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Assignment</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Sub Office</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Vendors</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Verified</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Payments</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Cash Collected</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
-                <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3d5a45] to-[#5a9e8f] flex items-center justify-center text-white text-xs font-bold">
-                        {c.name.split(" ").map((n) => n[0]).join("")}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                        <p className="text-xs text-gray-500">@{c.username}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                      <Phone size={13} className="text-gray-400" />
-                      {c.mobile}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                      <MapPin size={13} className="text-gray-400" />
-                      {c.market}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-800">{c.vendorsRegistered}</td>
-                  <td className="px-5 py-4 text-sm font-semibold text-[#3d5a45]">{c.paymentsVerified}</td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                      c.status === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-                    }`}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <button className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                      <MoreHorizontal size={16} className="text-gray-400" />
-                    </button>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">Loading collectors...</td>
                 </tr>
-              ))}
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">No collectors found</td>
+                </tr>
+              ) : (
+                filtered.map((c) => (
+                  <tr key={c.collector_id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3d5a45] to-[#5a9e8f] flex items-center justify-center text-white text-xs font-bold">
+                          {c.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{c.full_name}</p>
+                          <p className="text-xs text-gray-500">@{c.username}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                        <Phone size={13} className="text-gray-400" />
+                        {c.mobile_number || "—"}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                        <MapPin size={13} className="text-gray-400" />
+                        {c.sub_office || "—"}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-800">{c.vendors_registered}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-[#3d5a45]">{c.payments_recorded}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-800">MWK {c.cash_collected.toLocaleString()}</td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                        c.is_active ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"
+                      }`}>
+                        {c.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import CouncilLogo from "@/components/CouncilLogo";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -31,9 +32,7 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.role === 'Collector') window.location.href = '/dashboard/collector';
-      else if (data.role === 'Supervisor') window.location.href = '/dashboard/supervisor';
-      else window.location.href = '/dashboard';
+      window.location.href = '/dashboard';
       
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
@@ -50,18 +49,9 @@ export default function LoginPage() {
       {/* Mobile View */}
       <div className="sm:hidden min-h-screen w-full flex flex-col items-center justify-center p-5 relative">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-full bg-[#AFE607] flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#0E0E0B]" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v6l4 2" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-white tracking-wider leading-tight">BLANTYRE</p>
-              <p className="text-[10px] font-bold text-white tracking-wider leading-tight">CITY COUNCIL</p>
-            </div>
-          </div>
+          <CouncilLogo className="w-24 h-auto drop-shadow-[0_8px_24px_rgba(175,230,7,0.15)]" />
+          <p className="mt-3 text-[11px] font-bold text-white tracking-[0.2em] leading-tight text-center">BLANTYRE</p>
+          <p className="text-[11px] font-bold text-white tracking-[0.2em] leading-tight text-center">CITY COUNCIL</p>
         </div>
 
         <div className="w-full max-w-[380px] bg-[#1A1A16] border border-[#2A2A24] rounded-[24px] shadow-2xl shadow-black/40 p-7">
@@ -133,27 +123,16 @@ export default function LoginPage() {
         <div className="w-full max-w-[1000px] min-h-[600px] bg-white rounded-[32px] flex overflow-hidden shadow-2xl relative z-10">
           {/* LEFT SIDE - Branding */}
           <div className="w-[45%] bg-[#0E0E0B] relative flex flex-col justify-between p-8 rounded-l-[32px]">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-[#AFE607] flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-7 h-7 text-[#0E0E0B]" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-white tracking-wider leading-tight">BLANTYRE</p>
-                <p className="text-[10px] font-bold text-white tracking-wider leading-tight">CITY</p>
-                <p className="text-[10px] font-bold text-white tracking-wider leading-tight">COUNCIL</p>
+            <div className="flex flex-col items-center text-center">
+              <CouncilLogo className="w-16 h-auto" />
+              <div className="mt-2">
+                <p className="text-[10px] font-bold text-white tracking-[0.2em] leading-tight">BLANTYRE</p>
+                <p className="text-[10px] font-bold text-white tracking-[0.2em] leading-tight">CITY COUNCIL</p>
               </div>
             </div>
             
             <div className="flex-1 flex items-center justify-center">
-              <div className="w-48 h-48 bg-[#1A1A16] rounded-2xl flex items-center justify-center border border-[#2A2A24]">
-                <svg viewBox="0 0 24 24" className="w-24 h-24 text-[#AFE607]" fill="none" stroke="currentColor" strokeWidth="1">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-              </div>
+              <CouncilLogo className="w-52 h-auto drop-shadow-[0_16px_40px_rgba(0,0,0,0.45)]" />
             </div>
             
             <div className="text-[9px] text-white/30">

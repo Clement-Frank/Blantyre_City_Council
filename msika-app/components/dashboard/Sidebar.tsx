@@ -15,17 +15,21 @@ import {
   Menu,
   X,
   LogOut,
-  ChevronRight,
   Key,
+  MapPinned,
+  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import CouncilLogo from "@/components/CouncilLogo";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Live Map", href: "/dashboard/map", icon: MapPinned },
   { label: "Businesses", href: "/dashboard/businesses", icon: Store },
   { label: "Vendors", href: "/dashboard/vendors", icon: Users },
   { label: "Payments", href: "/dashboard/payments", icon: Receipt },
+  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
   { label: "Collectors", href: "/dashboard/collectors", icon: UserCheck },
   { label: "Supervisors", href: "/dashboard/supervisors", icon: Shield },
   { label: "Markets", href: "/dashboard/markets", icon: Store },
@@ -33,13 +37,6 @@ const navItems = [
     label: "Reports",
     href: "/dashboard/reports",
     icon: BarChart3,
-    subItems: [
-      { label: "Daily", href: "/dashboard/reports/daily" },
-      { label: "Monthly", href: "/dashboard/reports/monthly" },
-      { label: "Compliance", href: "/dashboard/reports/compliance" },
-      { label: "Collectors", href: "/dashboard/reports/collectors" },
-      { label: "Revenue", href: "/dashboard/reports/revenue" },
-    ],
   },
   { label: "API Management", href: "/dashboard/api-management", icon: Key },
   { label: "Audit Logs", href: "/dashboard/audit-logs", icon: Shield },
@@ -49,7 +46,6 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [expandedReport, setExpandedReport] = useState(true);
   const { user, logout } = useAuth();
 
   return (
@@ -76,11 +72,8 @@ export default function Sidebar() {
       >
         <div className="p-6 border-b border-[#1A1A16]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#AFE607] flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-6 h-6 text-[#0E0E0B]" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v6l4 2" />
-              </svg>
+            <div className="w-12 h-12 rounded-full bg-[#F5F0E6] flex items-center justify-center shadow-lg shadow-black/30 ring-1 ring-[#AFE607]/30 overflow-hidden">
+              <CouncilLogo className="w-10 h-auto" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-wider leading-tight text-white">BLANTYRE</h1>
@@ -94,50 +87,22 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            const isReports = item.label === "Reports";
 
             return (
-              <div key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => {
-                    if (isReports) setExpandedReport(!expandedReport);
-                    setMobileOpen(false);
-                  }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-[#AFE607] text-[#0E0E0B] shadow-lg shadow-[#AFE607]/20 font-semibold"
-                      : "text-white/50 hover:bg-[#1A1A16] hover:text-white"
-                  )}
-                >
-                  <Icon size={18} />
-                  <span className="flex-1">{item.label}</span>
-                  {isReports && (
-                    <ChevronRight size={14} className={cn("transition-transform", expandedReport && "rotate-90")} />
-                  )}
-                </Link>
-
-                {isReports && expandedReport && (
-                  <div className="ml-4 mt-1 space-y-1 border-l border-[#1A1A16] pl-4">
-                    {item.subItems?.map((sub) => (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        onClick={() => setMobileOpen(false)}
-                        className={cn(
-                          "block px-4 py-2 rounded-lg text-xs transition-all",
-                          pathname === sub.href
-                            ? "bg-[#AFE607]/20 text-[#AFE607] font-medium"
-                            : "text-white/40 hover:text-white hover:bg-[#1A1A16]"
-                        )}
-                      >
-                        {sub.label}
-                      </Link>
-                    ))}
-                  </div>
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  isActive
+                    ? "bg-[#AFE607] text-[#0E0E0B] shadow-lg shadow-[#AFE607]/20 font-semibold"
+                    : "text-white/50 hover:bg-[#1A1A16] hover:text-white"
                 )}
-              </div>
+              >
+                <Icon size={18} />
+                <span className="flex-1">{item.label}</span>
+              </Link>
             );
           })}
         </nav>

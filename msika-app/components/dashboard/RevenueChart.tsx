@@ -1,7 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { revenueData } from "@/lib/mock-data";
 
 const formatCurrency = (value: number | string | readonly (number | string)[] | undefined) => {
   if (Array.isArray(value)) {
@@ -14,26 +14,51 @@ const formatCurrency = (value: number | string | readonly (number | string)[] | 
   return `MWK ${numericValue}`;
 };
 
+interface Point {
+  date: string;
+  amount: number;
+  transactions: number;
+}
+
 export default function RevenueChart() {
+  const [data, setData] = useState<Point[]>([]);
+  const [range, setRange] = useState<7 | 14 | 30>(14);
+
+  useEffect(() => {
+    fetch("/api/dashboard")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setData(d.daily_series || []))
+      .catch(() => undefined);
+  }, []);
+
+  const series = data.slice(-range).map((d) => ({
+    ...d,
+    label: new Date(d.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+  }));
+
   return (
     <div className="bg-white rounded-2xl p-6 border border-[#E5E5E0] shadow-sm">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-base font-bold text-[#0E0E0B]">Revenue Classification</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Income vs Collection targets</p>
+          <h3 className="text-base font-bold text-[#0E0E0B]">Market Revenue Growth</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Daily collections — all markets</p>
         </div>
-        <select className="px-3 py-1.5 bg-[#F5F5F0] border border-[#E5E5E0] rounded-lg text-xs text-[#0E0E0B] focus:outline-none focus:ring-2 focus:ring-[#AFE607]/30">
-          <option>6 months</option>
-          <option>3 months</option>
-          <option>1 year</option>
+        <select
+          value={range}
+          onChange={(e) => setRange(Number(e.target.value) as 7 | 14 | 30)}
+          className="px-3 py-1.5 bg-[#F5F5F0] border border-[#E5E5E0] rounded-lg text-xs text-[#0E0E0B] focus:outline-none focus:ring-2 focus:ring-[#AFE607]/30"
+        >
+          <option value={7}>7 days</option>
+          <option value={14}>14 days</option>
+          <option value={30}>30 days</option>
         </select>
       </div>
 
       <div className="h-[280px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={4}>
+          <BarChart data={series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F5F5F0" />
-            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} dy={10} />
             <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={formatCurrency} width={80} />
             <Tooltip
               formatter={(value) => [formatCurrency(value), ""]}
@@ -41,8 +66,8 @@ export default function RevenueChart() {
               itemStyle={{ color: "#AFE607" }}
             />
             <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }} iconType="circle" iconSize={8} />
-            <Bar dataKey="income" name="Collected" fill="#AFE607" radius={[6, 6, 0, 0]} maxBarSize={36} />
-            <Bar dataKey="outcome" name="Target" fill="#0E0E0B" radius={[6, 6, 0, 0]} maxBarSize={36} />
+            <Bar dataKey="amount" name="Revenue" fill="#AFE607" radius={[6, 6, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="transactions" name="Transactions" fill="#0E0E0B" radius={[6, 6, 0, 0]} maxBarSize={28} yAxisId="right" hide />
           </BarChart>
         </ResponsiveContainer>
       </div>
