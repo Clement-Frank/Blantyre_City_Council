@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 
-// GET /api/markets — markets with sections and counts
+// GET /api/markets — markets with sections and counts (admin/supervisor)
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role === "Collector") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   const [markets, subOffices] = await Promise.all([
     prisma.market.findMany({
@@ -24,10 +27,13 @@ export async function GET() {
   return NextResponse.json({ markets, sub_offices: subOffices });
 }
 
-// POST /api/markets — create a market or a section
+// POST /api/markets — create a market or a section (admin only)
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

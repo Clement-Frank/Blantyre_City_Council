@@ -11,6 +11,26 @@ export function generateApiKey(): { plain: string; hash: string } {
   return { plain, hash };
 }
 
+// Permissions are stored as a JSON array string, but some seeded rows use a
+// legacy comma-separated format — accept both so neither the external API
+// nor the admin UI crashes on old data.
+export function parsePermissions(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return trimmed
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
 export async function validateApiKey(key: string) {
   const hash = hashApiKey(key);
   const apiKey = await prisma.apiKey.findFirst({
@@ -34,7 +54,7 @@ export async function validateApiKey(key: string) {
     apiClientId: apiKey.api_client_id,
     clientName: apiKey.api_client.name,
     councilId: apiKey.api_client.council_id,
-    permissions: JSON.parse(apiKey.permissions || "[]"),
+    permissions: parsePermissions(apiKey.permissions),
     rateLimit: apiKey.rate_limit,
   };
 }

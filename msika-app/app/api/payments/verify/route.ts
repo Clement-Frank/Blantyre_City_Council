@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
 
 // GET /api/payments/verify?vendor_number=V-01001
 export async function GET(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("vendor_number")?.trim();
   if (!q) return NextResponse.json({ error: "vendor_number is required" }, { status: 400 });
 
   const business = await prisma.business.findFirst({
-    where: { OR: [{ vendor_number: q.toUpperCase() }, { phone_number: q }] },
+    where: {
+      AND: [
+        { OR: [{ vendor_number: q.toUpperCase() }, { phone_number: q }] },
+        businessScopeFilter(scope),
+      ],
+    },
     include: {
       market: { select: { name: true } },
       section: { select: { section_name: true } },
@@ -33,7 +40,7 @@ export async function GET(request: NextRequest) {
   });
 
   const history = await prisma.payment.findMany({
-    where: { business_id: business.business_id },
+    where: { business_id: business.business_id, ...paymentScopeFilter(scope) },
     orderBy: { paid_at: "desc" },
     take: 10,
   });

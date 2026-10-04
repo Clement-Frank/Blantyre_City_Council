@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, MoreHorizontal, Phone, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Phone, MapPin } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Vendor {
   business_id: number;
@@ -12,6 +13,7 @@ interface Vendor {
   phone_number: string;
   market: { name: string };
   section: { section_name: string } | null;
+  business_type: { name: string; fee_amount: string } | null;
   status: string;
   registration_date: string;
   paid_today: boolean;
@@ -22,6 +24,14 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const { user } = useAuth();
+
+  const scopeHint =
+    user?.role === "Collector"
+      ? "Showing vendors you registered"
+      : user?.role === "Supervisor"
+        ? "Showing vendors in your sub-office"
+        : null;
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -35,14 +45,29 @@ export default function VendorsPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const filtered = statusFilter === "All" ? vendors : statusFilter === "Paid" ? vendors.filter((v) => v.paid_today) : statusFilter === "Unpaid" ? vendors.filter((v) => !v.paid_today) : vendors.filter((v) => v.status === statusFilter);
+  const filtered =
+    statusFilter === "All"
+      ? vendors
+      : statusFilter === "Paid"
+        ? vendors.filter((v) => v.paid_today)
+        : statusFilter === "Unpaid"
+          ? vendors.filter((v) => !v.paid_today)
+          : vendors.filter((v) => v.status === statusFilter);
 
   return (
     <div className="space-y-6 max-w-[1600px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Vendors</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage registered market vendors and today's payment status</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Registered market businesses, their fees and today&apos;s payment status
+          </p>
+          {scopeHint && (
+            <p className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-[#e8f0ec] text-[#3d5a45] rounded-full text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3d5a45]" />
+              {scopeHint}
+            </p>
+          )}
         </div>
         <Link
           href="/dashboard/vendors/new"
@@ -86,7 +111,9 @@ export default function VendorsPage() {
               <tr className="bg-gray-50/50">
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Vendor</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Contact</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Type</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Location</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Daily Fee</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Paid Today</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
                 <th className="px-5 py-3"></th>
@@ -95,11 +122,11 @@ export default function VendorsPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">Loading vendors...</td>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">Loading vendors...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">No vendors found</td>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">No vendors found</td>
                 </tr>
               ) : (
                 filtered.map((vendor) => (
@@ -121,11 +148,17 @@ export default function VendorsPage() {
                         {vendor.phone_number}
                       </div>
                     </td>
+                    <td className="px-5 py-4 text-sm text-gray-600">
+                      {vendor.business_type?.name ?? "—"}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1.5 text-sm text-gray-600">
                         <MapPin size={13} className="text-gray-400" />
                         {vendor.section?.section_name || vendor.market?.name}
                       </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-800">
+                      MWK {Number(vendor.business_type?.fee_amount ?? 0).toLocaleString()}
                     </td>
                     <td className="px-5 py-4">
                       {vendor.paid_today ? (

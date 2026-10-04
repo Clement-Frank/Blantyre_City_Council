@@ -54,11 +54,14 @@ export default function NewVendorPage() {
   }, []);
 
   useEffect(() => {
-    // Load business types via markets-less endpoint (uses vendors list meta) —
-    // simplest: derive from an exposed setup endpoint is overkill; fetch first vendor list.
-    fetch("/api/setup/types")
+    // Reference data: business types (with fees) + markets with sections
+    fetch("/api/vendors/meta")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setTypes(d.types || []))
+      .then((d) => {
+        if (!d) return;
+        setTypes(d.types || []);
+        setMarkets(d.markets || []);
+      })
       .catch(() => undefined);
   }, []);
 

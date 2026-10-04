@@ -1,147 +1,311 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Plus, Key, Copy, Eye, EyeOff, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
-import Link from "next/link";
+// API Management — real integration surface for external providers
+// (Airtel Money, TNM Mpamba, USSD aggregators). Registered clients hold
+// API keys consumed by /api/external/*. Plaintext keys are shown exactly
+// once at creation; only SHA-256 hashes are stored server-side.
 
-const apiClients = [
-  { id: 1, name: "Airtel Money Malawi", contact: "api@airtel.mw", phone: "0999000000", council: "Blantyre City Council", keys: 2, status: "Active", lastUsed: "2 mins ago" },
-  { id: 2, name: "TNM Mpamba", contact: "dev@tnm.mw", phone: "0888000000", council: "Blantyre City Council", keys: 1, status: "Active", lastUsed: "5 mins ago" },
-  { id: 3, name: "USSD Provider Ltd", contact: "support@ussd.mw", phone: "0999111111", council: "Lilongwe City Council", keys: 1, status: "Inactive", lastUsed: "3 days ago" },
-];
+import { useCallback, useEffect, useState } from "react";
+import { Plus, Key, Copy, Check, X, RefreshCw, ShieldCheck, Power } from "lucide-react";
+
+interface ApiKeyRow {
+  api_key_id: number;
+  name: string;
+  permissions: string[];
+  rate_limit: number;
+  last_used_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface ApiClientRow {
+  api_client_id: number;
+  name: string;
+  contact_email: string;
+  contact_phone: string | null;
+  is_active: boolean;
+  created_at: string;
+  keys: ApiKeyRow[];
+}
 
 export default function ApiManagementPage() {
-  const [search, setSearch] = useState("");
-  const [showKey, setShowKey] = useState<number | null>(null);
+  const [clients, setClients] = useState<ApiClientRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [formMsg, setFormMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [freshKey, setFreshKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [toggling, setToggling] = useState<number | null>(null);
 
-  const filtered = apiClients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/api-clients")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setClients(d?.clients ?? []))
+      .catch(() => setClients([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const copyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const createClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setFormMsg(null);
+    try {
+      const res = await fetch("/api/api-clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, contact_email: email, contact_phone: phone }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setFreshKey(d.api_key.plaintext);
+        setShowCreate(false);
+        setName("");
+        setEmail("");
+        setPhone("");
+        load();
+      } else {
+        setFormMsg({ ok: false, text: d.error || "Failed to register client" });
+      }
+    } catch {
+      setFormMsg({ ok: false, text: "Network error" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const toggleKey = async (keyId: number, isActive: boolean) => {
+    setToggling(keyId);
+    try {
+      await fetch("/api/api-clients", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key_id: keyId, is_active: !isActive }),
+      });
+      load();
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const copyKey = () => {
+    if (freshKey) navigator.clipboard.writeText(freshKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const totalKeys = clients.reduce((a, c) => a + c.keys.length, 0);
+  const activeKeys = clients.reduce((a, c) => a + c.keys.filter((k) => k.is_active).length, 0);
 
   return (
     <div className="space-y-6 max-w-[1600px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">API Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage external service providers and API keys</p>
+          <p className="text-sm text-gray-500 mt-1">
+            External provider integrations feeding /api/external — keys are hashed, shown once
+          </p>
         </div>
-        <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20">
+        <button
+          onClick={() => {
+            setShowCreate(true);
+            setFormMsg(null);
+          }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
+        >
           <Plus size={16} />
           Register API Client
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Total API Clients</p>
-          <p className="text-2xl font-bold text-gray-800">12</p>
+          <p className="text-xs text-gray-500 mb-1">Registered clients</p>
+          <p className="text-2xl font-bold text-gray-800">{clients.length}</p>
         </div>
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Active Keys</p>
-          <p className="text-2xl font-bold text-[#3d5a45]">18</p>
+          <p className="text-xs text-gray-500 mb-1">Active keys</p>
+          <p className="text-2xl font-bold text-[#3d5a45]">
+            {activeKeys} <span className="text-sm text-gray-400 font-medium">of {totalKeys}</span>
+          </p>
         </div>
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">API Calls (Today)</p>
-          <p className="text-2xl font-bold text-gray-800">45,230</p>
-        </div>
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Avg Response Time</p>
-          <p className="text-2xl font-bold text-gray-800">124ms</p>
+          <p className="text-xs text-gray-500 mb-1">Endpoints served</p>
+          <p className="text-2xl font-bold text-gray-800 text-sm pt-2 font-mono">
+            /external/payments · /external/vendors
+          </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search API clients..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30"
-            />
+      {/* Freshly minted key — shown once */}
+      {freshKey && (
+        <div className="bg-[#0E0E0B] rounded-2xl p-6 text-white shadow-xl border border-[#AFE607]/30">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck size={16} className="text-[#AFE607]" />
+            <p className="text-sm font-bold">API key created — copy it now, it will not be shown again</p>
           </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50">
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Client</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Council</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">API Keys</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Last Used</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3d5a45] to-[#5a9e8f] flex items-center justify-center text-white text-xs font-bold">
-                        {client.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{client.name}</p>
-                        <p className="text-xs text-gray-500">{client.contact}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{client.council}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <Key size={14} className="text-[#3d5a45]" />
-                      <span className="text-sm font-medium text-gray-800">{client.keys}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                      client.status === "Active" ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"
-                    }`}>
-                      {client.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-500">{client.lastUsed}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <button className="p-1.5 hover:bg-[#e8f0ec] rounded-lg transition-colors text-[#3d5a45]" title="Regenerate Key">
-                        <RefreshCw size={16} />
-                      </button>
-                      <button className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-500" title="Revoke">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* API Key Generator Mock */}
-      <div className="bg-gradient-to-br from-[#3d5a45] to-[#2d4335] rounded-2xl p-6 text-white shadow-lg">
-        <h3 className="text-base font-bold mb-4">Generate New API Key</h3>
-        <div className="flex gap-3">
-          <div className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl font-mono text-sm text-white/90 flex items-center justify-between">
-            <span>{showKey ? "msika_a1b2c3d4e5f6789012345678abcdef" : "••••••••••••••••••••••••••••••••"}</span>
-            <button onClick={() => setShowKey(showKey ? null : 1)} className="text-white/50 hover:text-white transition-colors">
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <code className="flex-1 px-4 py-3 bg-[#1A1A16] border border-[#2A2A24] rounded-xl text-xs font-mono text-[#AFE607] break-all">
+              {freshKey}
+            </code>
+            <button
+              onClick={copyKey}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 bg-[#AFE607] hover:bg-[#C5F92E] text-[#0E0E0B] text-sm font-bold rounded-xl transition-colors shrink-0"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              onClick={() => setFreshKey(null)}
+              className="px-3 py-3 text-white/50 hover:text-white transition-colors shrink-0"
+              title="Dismiss"
+            >
+              <X size={16} />
             </button>
           </div>
-          <button onClick={() => copyKey("msika_a1b2c3d4e5f6789012345678abcdef")} className="px-4 py-3 bg-[#5a9e8f] hover:bg-[#4a8e7f] rounded-xl transition-colors">
-            {copied ? <CheckCircle2 size={18} /> : <Copy size={18} />}
-          </button>
         </div>
-        <p className="text-xs text-white/50 mt-3">Copy this key immediately. It will not be shown again.</p>
+      )}
+
+      {/* Create client modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowCreate(false)}>
+          <div className="bg-white rounded-2xl p-7 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-gray-800">Register API Client</h3>
+              <button onClick={() => setShowCreate(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            {formMsg && (
+              <div className={`rounded-xl px-4 py-3 mb-4 text-sm ${formMsg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+                {formMsg.text}
+              </div>
+            )}
+            <form onSubmit={createClient} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Provider name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Airtel Money Malawi"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="api@provider.mw"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact phone (optional)</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0999xxxxxx"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={creating}
+                className="w-full py-3 bg-[#3d5a45] hover:bg-[#2d4335] text-white font-medium rounded-xl transition-colors disabled:opacity-50"
+              >
+                {creating ? "Creating..." : "Register & generate key"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Clients & keys */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">
+            Loading API clients...
+          </div>
+        ) : clients.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">
+            No API clients registered yet — wallet webhooks (Airtel/TNM) use signed routes, external providers use keys from here.
+          </div>
+        ) : (
+          clients.map((c) => (
+            <div key={c.api_client_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-gray-50 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-[#e8f0ec] text-[#3d5a45] flex items-center justify-center">
+                    <Key size={16} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{c.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {c.contact_email}
+                      {c.contact_phone ? ` · ${c.contact_phone}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${c.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-gray-50 text-gray-500 border-gray-100"}`}>
+                    {c.is_active ? "Active" : "Disabled"}
+                  </span>
+                  <span className="text-[11px] text-gray-400">
+                    registered {new Date(c.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {c.keys.map((k) => (
+                  <div key={k.api_key_id} className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 hover:bg-gray-50/40">
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-800 font-medium">{k.name}</p>
+                      <p className="text-[11px] text-gray-400 font-mono">
+                        key #{k.api_key_id} · {k.permissions.join(", ")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-gray-400">
+                        {k.last_used_at
+                          ? `last used ${new Date(k.last_used_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                          : "never used"}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${k.is_active ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"}`}>
+                        {k.is_active ? "ACTIVE" : "REVOKED"}
+                      </span>
+                      <button
+                        onClick={() => toggleKey(k.api_key_id, k.is_active)}
+                        disabled={toggling === k.api_key_id}
+                        className={`p-1.5 rounded-lg transition-colors ${k.is_active ? "text-gray-400 hover:text-red-500 hover:bg-red-50" : "text-emerald-600 hover:bg-emerald-50"}`}
+                        title={k.is_active ? "Revoke key" : "Re-enable key"}
+                      >
+                        {toggling === k.api_key_id ? <RefreshCw size={14} className="animate-spin" /> : <Power size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {c.keys.length === 0 && (
+                  <div className="px-5 py-3.5 text-xs text-gray-400">No keys — register a new client to mint one.</div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

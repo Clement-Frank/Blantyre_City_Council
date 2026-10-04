@@ -4,24 +4,21 @@
 // system does: collect market fees, show who has paid (green) and who has not
 // (red), and keep revenue flowing into Blantyre City Council.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   UserPlus,
   Receipt,
   MapPinned,
-  BellRing,
   TrendingUp,
   TrendingDown,
   Smartphone,
   Banknote,
-  Radio,
-  ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import MarketFocusCard from "@/components/dashboard/MarketFocusCard";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 import RecentPayments from "@/components/dashboard/RecentPayments";
-import CollectionStats from "@/components/dashboard/CollectionStats";
 
 interface DashStats {
   total_vendors: number;
@@ -44,11 +41,10 @@ interface ChannelMix {
   amount: number;
 }
 
-const CHANNEL_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+const CHANNEL_META: Record<string, { label: string; icon: React.ElementType; color: string; logo?: string }> = {
   Cash: { label: "Cash (collector)", icon: Banknote, color: "#f59e0b" },
-  AirtelMoney: { label: "Airtel Money", icon: Smartphone, color: "#e40000" },
-  TNMMpamba: { label: "TNM Mpamba", icon: Smartphone, color: "#00a0a0" },
-  USSD: { label: "USSD", icon: Radio, color: "#8b5cf6" },
+  AirtelMoney: { label: "Airtel Money", icon: Smartphone, color: "#e40000", logo: "/brands/airtel.png" },
+  TNMMpamba: { label: "TNM Mpamba", icon: Smartphone, color: "#00a0a0", logo: "/brands/tnm.png" },
   Bank: { label: "Bank", icon: Banknote, color: "#3b82f6" },
 };
 
@@ -69,15 +65,43 @@ function ComplianceRing({ pct }: { pct: number }) {
           strokeWidth="12"
           strokeLinecap="round"
           strokeDasharray={`${filled} ${c - filled}`}
-          className="transition-all duration-700"
+          className="transition-[stroke-dasharray] duration-700 ease-out"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-extrabold text-white">{pct}%</span>
+        <span className="text-3xl font-extrabold text-white tabular-nums">{pct}%</span>
         <span className="text-[10px] uppercase tracking-wider text-white/40">compliance</span>
       </div>
     </div>
   );
+}
+
+// Smooth count-up used by the hero figures (revenue, paid, unpaid, compliance).
+function useCountUp(target: number, duration = 900) {
+  const [value, setValue] = useState(0);
+  const fromRef = useRef(0);
+
+  useEffect(() => {
+    if (!Number.isFinite(target)) return;
+    const start = performance.now();
+    const from = fromRef.current;
+    let raf = 0;
+    const step = (t: number) => {
+      const p = Math.min((t - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      const v = from + (target - from) * eased;
+      setValue(v);
+      if (p < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        fromRef.current = target;
+      }
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+
+  return value;
 }
 
 export default function AdminDashboard() {
@@ -118,6 +142,12 @@ export default function AdminDashboard() {
 
   const mwk = (n: number) => `MK ${n.toLocaleString("en-MW", { maximumFractionDigits: 0 })}`;
 
+  // Animated hero figures — sweep up when data lands (and on each refresh)
+  const paidCount = useCountUp(stats?.paid_today ?? 0);
+  const unpaidCount = useCountUp(stats?.unpaid_today ?? 0);
+  const compliance = useCountUp(stats?.compliance_today ?? 0);
+  const revenue = useCountUp(stats?.revenue_today ?? 0);
+
   return (
     <div className="space-y-6 max-w-[1600px]">
       {/* ===== Control tower hero ===== */}
@@ -138,10 +168,10 @@ export default function AdminDashboard() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-end gap-x-10 gap-y-4">
-              <div>
+              <div className="msika-rise">
                 <p className="text-[11px] uppercase tracking-wider text-white/40">Collected today</p>
-                <p className="text-4xl font-extrabold text-[#AFE607] leading-tight">
-                  {stats ? mwk(stats.revenue_today) : "—"}
+                <p className="text-4xl font-extrabold text-[#AFE607] leading-tight tabular-nums">
+                  {stats ? mwk(revenue) : "—"}
                 </p>
                 {stats?.revenue_growth_pct != null && (
                   <span
@@ -197,31 +227,26 @@ export default function AdminDashboard() {
           </div>
 
           {/* Paid vs unpaid split */}
-          <div className="flex items-center gap-8 rounded-2xl bg-[#141410]/80 border border-[#1F1F1A] p-6 lg:p-7">
-            <ComplianceRing pct={stats?.compliance_today ?? 0} />
+          <div className="msika-rise flex items-center gap-8 rounded-2xl bg-[#141410]/80 border border-[#1F1F1A] p-6 lg:p-7">
+            <ComplianceRing pct={Math.round(compliance)} />
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.8)]" />
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.8)] animate-pulse" />
                 <div>
-                  <p className="text-xl font-bold leading-none">{stats?.paid_today ?? "—"}</p>
+                  <p className="text-xl font-bold leading-none tabular-nums">{Math.round(paidCount)}</p>
                   <p className="text-[11px] text-white/40">paid — green dots</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+                <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)] animate-pulse" />
                 <div>
-                  <p className="text-xl font-bold leading-none">{stats?.unpaid_today ?? "—"}</p>
+                  <p className="text-xl font-bold leading-none tabular-nums">{Math.round(unpaidCount)}</p>
                   <p className="text-[11px] text-white/40">unpaid — red dots</p>
                 </div>
               </div>
-              <Link
-                href="/dashboard/reminders"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#AFE607] hover:text-[#C5F92E] transition-colors"
-              >
-                <BellRing size={13} />
-                Remind unpaid vendors
-                <ArrowUpRight size={12} />
-              </Link>
+              <p className="text-[11px] text-white/40 max-w-[220px] leading-relaxed">
+                Reminders dispatch automatically every 30 minutes — no chasing needed
+              </p>
             </div>
           </div>
         </div>
@@ -243,12 +268,19 @@ export default function AdminDashboard() {
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center gap-2.5 mb-2">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
-                  >
-                    <Icon size={15} />
-                  </div>
+                  {meta.logo ? (
+                    <div className="w-10 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={meta.logo} alt={meta.label} className="max-h-6 max-w-[36px] object-contain" />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
+                    >
+                      <Icon size={15} />
+                    </div>
+                  )}
                   <p className="text-xs font-semibold text-gray-700 leading-tight">{meta.label}</p>
                 </div>
                 <p className="text-lg font-extrabold text-gray-900">{mwk(ch.amount)}</p>
@@ -259,48 +291,17 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {/* ===== Revenue + sections ===== */}
+      {/* ===== Revenue + market focus ===== */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
           <RevenueChart />
         </div>
-        <CollectionStats />
+        <MarketFocusCard />
       </div>
 
-      {/* ===== Live feed + actions ===== */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <RecentPayments />
-        </div>
-
-        <div className="bg-[#0E0E0B] rounded-2xl p-6 text-white shadow-lg border border-[#1A1A16]">
-          <h3 className="text-base font-bold mb-1">Quick Actions</h3>
-          <p className="text-xs text-white/40 mb-5">Everything you do in a day</p>
-
-          <div className="space-y-3">
-            {[
-              { href: "/dashboard/map", icon: MapPinned, title: "Monitor Map", desc: "See red/green vendor dots live" },
-              { href: "/dashboard/vendors/new", icon: UserPlus, title: "Register Vendor", desc: "Geo-locate them at their stall" },
-              { href: "/dashboard/payments", icon: Receipt, title: "Record Payment", desc: "Flip a red dot to green" },
-              { href: "/dashboard/payments/verify", icon: Receipt, title: "Verify Payment", desc: "Look up by vendor number" },
-              { href: "/dashboard/reports", icon: TrendingUp, title: "Reports", desc: "Daily, monthly & compliance" },
-            ].map((a) => (
-              <Link
-                key={a.title}
-                href={a.href}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A16] hover:bg-[#2A2A24] rounded-xl transition-all border border-[#2A2A24]"
-              >
-                <div className="w-8 h-8 rounded-lg bg-[#AFE607] flex items-center justify-center text-[#0E0E0B] shrink-0">
-                  <a.icon size={14} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{a.title}</p>
-                  <p className="text-[10px] text-white/40">{a.desc}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
+      {/* ===== Live feed ===== */}
+      <div>
+        <RecentPayments />
       </div>
     </div>
   );

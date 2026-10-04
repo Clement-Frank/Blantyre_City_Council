@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
 import { sendSMS } from "@/lib/sms";
 
 // GET /api/reminders — today's unpaid vendors (reminder targets) + recent notifications
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const paidBusinessIds = await prisma.payment.findMany({
-    where: { status: "Completed", paid_at: { gte: today } },
+    where: { AND: [{ status: "Completed", paid_at: { gte: today } }, paymentScopeFilter(scope)] },
     select: { business_id: true },
   });
   const paidSet = new Set(paidBusinessIds.map((p) => p.business_id));
 
   const allVendors = await prisma.business.findMany({
-    where: { status: "Active" },
+    where: { AND: [{ status: "Active" }, businessScopeFilter(scope)] },
     select: { business_id: true, vendor_number: true, business_name: true, owner_name: true, phone_number: true, market: { select: { name: true } } },
   });
 
@@ -42,6 +44,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -51,14 +54,14 @@ export async function POST(request: NextRequest) {
     today.setHours(0, 0, 0, 0);
 
     const paidBusinessIds = await prisma.payment.findMany({
-      where: { status: "Completed", paid_at: { gte: today } },
+      where: { AND: [{ status: "Completed", paid_at: { gte: today } }, paymentScopeFilter(scope)] },
       select: { business_id: true },
     });
     const paidSet = new Set(paidBusinessIds.map((p) => p.business_id));
 
-    const where: Record<string, unknown> = { status: "Active" };
+    const where: Record<string, unknown> = { AND: [{ status: "Active" }, businessScopeFilter(scope)] };
     if (vendor_numbers?.length) {
-      where.vendor_number = { in: vendor_numbers.map((v) => v.toUpperCase()) };
+      (where.AND as Record<string, unknown>[]).push({ vendor_number: { in: vendor_numbers.map((v) => v.toUpperCase()) } });
     }
 
     const targets = await prisma.business.findMany({

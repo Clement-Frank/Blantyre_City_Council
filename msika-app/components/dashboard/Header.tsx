@@ -18,7 +18,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-[#E5E5E0] px-6 py-4">
       <div className="flex items-center justify-between">
-        <div className="relative w-full max-w-md ml-12 lg:ml-0">
+        <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Phone, MapPin, Calendar, Receipt, QrCode, Wallet, Printer } from "lucide-react";
 import Link from "next/link";
+import QRCode from "qrcode";
 
 interface VendorDetail {
   vendor_number: string;
@@ -38,6 +39,7 @@ export default function VendorDetailPage() {
   const [vendor, setVendor] = useState<VendorDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
   useEffect(() => {
     fetch(`/api/vendors/${id}`)
@@ -50,6 +52,15 @@ export default function VendorDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Real QR: points vendors to their public self-pay page
+  useEffect(() => {
+    if (!vendor?.vendor_number) return;
+    const url = `${window.location.origin}/pay/${vendor.vendor_number}`;
+    QRCode.toDataURL(url, { width: 320, margin: 1, color: { dark: "#0E0E0B", light: "#FFFFFF" } })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(""));
+  }, [vendor?.vendor_number]);
 
   if (loading) {
     return <div className="py-20 text-center text-sm text-gray-400">Loading vendor profile...</div>;
@@ -199,11 +210,19 @@ export default function VendorDetailPage() {
 
         <div className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center">
-            <h3 className="text-sm font-bold text-gray-800 mb-4">Vendor QR Code</h3>
-            <div className="w-40 h-40 mx-auto bg-[#e8f0ec] rounded-xl flex items-center justify-center mb-3">
-              <QrCode size={64} className="text-[#3d5a45]" />
-            </div>
-            <p className="text-xs text-gray-500">Scan to verify payment status</p>
+            <h3 className="text-sm font-bold text-gray-800 mb-4">Stall Pay QR</h3>
+            {qrDataUrl ? (
+              <div className="inline-block p-3 bg-white border-2 border-[#3d5a45]/20 rounded-2xl shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt={`Pay QR for ${vendor.vendor_number}`} className="w-40 h-40" />
+              </div>
+            ) : (
+              <div className="w-40 h-40 mx-auto bg-[#e8f0ec] rounded-xl flex items-center justify-center mb-3">
+                <QrCode size={64} className="text-[#3d5a45]" />
+              </div>
+            )}
+            <p className="text-xs text-gray-600 font-semibold mt-3">SCAN TO PAY DAILY FEE</p>
+            <p className="text-[11px] text-gray-400 mt-1">Opens this stall&apos;s payment page — dot turns green instantly</p>
             <p className="text-[10px] text-gray-400 mt-1 font-mono">{vendor.vendor_number}</p>
           </div>
 

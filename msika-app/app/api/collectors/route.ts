@@ -4,10 +4,13 @@ import { getSessionUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 
-// GET /api/collectors — list collectors with performance stats
+// GET /api/collectors — list collectors with performance stats (admin only)
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   const collectors = await prisma.collector.findMany({
     include: {
@@ -33,10 +36,13 @@ export async function GET() {
   return NextResponse.json({ collectors: data });
 }
 
-// POST /api/collectors — register a revenue collector
+// POST /api/collectors — register a revenue collector (admin only)
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

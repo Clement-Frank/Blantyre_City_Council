@@ -4,10 +4,13 @@ import { getSessionUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 
-// GET /api/supervisors — list supervisors with sub-office context
+// GET /api/supervisors — list supervisors with sub-office context (admin only)
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   const supervisors = await prisma.supervisor.findMany({
     include: {
@@ -28,10 +31,13 @@ export async function GET() {
   return NextResponse.json({ supervisors: data, count: data.length });
 }
 
-// POST /api/supervisors — add a supervisor
+// POST /api/supervisors — add a supervisor (admin only)
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -98,10 +104,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/supervisors?id=123 — deactivate (soft delete) a supervisor
+// DELETE /api/supervisors?id=123 — deactivate (soft delete) a supervisor (admin only)
 export async function DELETE(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "Administrator") {
+    return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id"));

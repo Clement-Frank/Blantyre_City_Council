@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "NODE_OPTIONS=--max-old-space-size=640 next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "lint": "eslint",
@@ -20,6 +20,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.26.0",
     "next": "16.2.11",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

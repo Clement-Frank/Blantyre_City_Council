@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getScope, businessScopeFilter } from "@/lib/permissions";
 import { LIMBE_MARKET_BOUNDARY, LIMBE_MARKET_CENTER } from "@/lib/geofence";
 
 // GET /api/map — vendors as red (unpaid) / green (paid) dots inside the fence
 export async function GET(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   const { searchParams } = new URL(request.url);
   const filter = searchParams.get("filter"); // "paid" | "unpaid" | undefined (all)
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
   today.setHours(0, 0, 0, 0);
 
   const businesses = await prisma.business.findMany({
+    where: businessScopeFilter(scope),
     include: {
       section: { select: { section_name: true } },
       business_type: { select: { name: true, fee_amount: true } },

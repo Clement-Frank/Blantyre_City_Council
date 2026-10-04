@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { logAudit } from "./audit";
+import { notifyVendor, paymentReceiptContent } from "./notify";
 
 export interface WalletWebhookBody {
   transaction_ref?: string;
@@ -113,16 +114,12 @@ export async function processWalletWebhook(
       },
     });
 
-    // Notify the vendor (stored notification; SMS sent if Twilio keys configured)
-    await prisma.notification.create({
-      data: {
-        recipient_type: "Business",
-        recipient_id: business.business_id,
-        type: "SMS",
-        channel: "Payment",
-        status: process.env.TWILIO_ACCOUNT_SID ? "Pending" : "Logged",
-        content: `Payment received: MWK ${amountNum} for ${business.vendor_number}. Thank you.`,
-      },
+    // Automatic receipt — sent instantly via SMS when Twilio keys are
+    // configured, otherwise stored in the system as proof of notification.
+    await notifyVendor({
+      kind: "receipt",
+      business,
+      content: paymentReceiptContent(business.vendor_number, amountNum, isAirtel ? "AirtelMoney" : "TNMMpamba"),
     }).catch(() => undefined);
   }
 

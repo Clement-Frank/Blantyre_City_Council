@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { resolveVendorLocation, checkGeofence } from "@/lib/geofence";
 
@@ -8,6 +9,7 @@ import { resolveVendorLocation, checkGeofence } from "@/lib/geofence";
 export async function GET(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...businessScopeFilter(scope) };
   if (search) {
     where.OR = [
       { business_name: { contains: search, mode: "insensitive" } },
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
       section: { select: { section_name: true } },
       business_type: { select: { name: true, fee_amount: true } },
       payments: {
-        where: { status: "Completed", paid_at: { gte: today } },
+        where: { status: "Completed", paid_at: { gte: today }, ...(paymentScopeFilter(scope) as object) },
         select: { payment_id: true, amount: true, paid_at: true, payment_channel: true },
         orderBy: { paid_at: "desc" },
         take: 1,

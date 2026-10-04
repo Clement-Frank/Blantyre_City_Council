@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,62 +11,76 @@ import {
   Store,
   BarChart3,
   Settings,
-  Menu,
-  X,
   LogOut,
   Key,
   MapPinned,
-  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import CouncilLogo from "@/components/CouncilLogo";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Live Map", href: "/dashboard/map", icon: MapPinned },
-  { label: "Businesses", href: "/dashboard/businesses", icon: Store },
+// Route visibility per role. Roles not listed for an item cannot see it.
+// `short` is the compact label shown in the mobile bottom tab bar.
+const navItems: {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  roles?: string[];
+  short?: string;
+}[] = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, short: "Home" },
+  { label: "Live Map", href: "/dashboard/map", icon: MapPinned, short: "Map" },
   { label: "Vendors", href: "/dashboard/vendors", icon: Users },
   { label: "Payments", href: "/dashboard/payments", icon: Receipt },
-  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
-  { label: "Collectors", href: "/dashboard/collectors", icon: UserCheck },
-  { label: "Supervisors", href: "/dashboard/supervisors", icon: Shield },
-  { label: "Markets", href: "/dashboard/markets", icon: Store },
+  { label: "Reports", href: "/dashboard/reports", icon: BarChart3 },
   {
-    label: "Reports",
-    href: "/dashboard/reports",
-    icon: BarChart3,
+    label: "Collectors",
+    href: "/dashboard/collectors",
+    icon: UserCheck,
+    roles: ["Administrator"],
   },
-  { label: "API Management", href: "/dashboard/api-management", icon: Key },
-  { label: "Audit Logs", href: "/dashboard/audit-logs", icon: Shield },
+  {
+    label: "Supervisors",
+    href: "/dashboard/supervisors",
+    icon: Shield,
+    roles: ["Administrator"],
+  },
+  {
+    label: "Market Center",
+    href: "/dashboard/markets",
+    icon: Store,
+    short: "Market",
+  },
+  {
+    label: "API Management",
+    href: "/dashboard/api-management",
+    icon: Key,
+    roles: ["Administrator"],
+  },
+  {
+    label: "Audit Logs",
+    href: "/dashboard/audit-logs",
+    icon: Shield,
+    roles: ["Administrator"],
+  },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
+
+  // Prune nav items the current role may not use (admins see everything)
+  const visibleNav = navItems.filter(
+    (item) => !item.roles || (user && item.roles.includes(user.role))
+  );
 
   return (
     <>
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#0E0E0B] text-[#AFE607] rounded-lg shadow-lg border border-[#2A2A24]"
-      >
-        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
-
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/60 z-30 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
+      {/* Desktop sidebar — hidden on mobile, which uses the bottom tab bar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-40 h-screen w-[280px] bg-[#0E0E0B] text-white flex flex-col shadow-xl transition-transform duration-300 border-r border-[#1A1A16]",
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          "hidden lg:flex lg:sticky top-0 z-40 h-screen w-[280px] bg-[#0E0E0B] text-white flex-col shadow-xl border-r border-[#1A1A16]"
         )}
       >
         <div className="p-6 border-b border-[#1A1A16]">
@@ -84,7 +97,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
@@ -92,7 +105,6 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                   isActive
@@ -132,6 +144,53 @@ export default function Sidebar() {
           </button>
         </div>
       </aside>
+
+      {/* Mobile navigation tabs — always visible bottom bar, no hamburger.
+          Horizontally scrollable so every role-pruned route stays reachable. */}
+      <nav
+        className={cn(
+          "lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0E0E0B] border-t border-[#2A2A24]",
+          "shadow-[0_-6px_24px_rgba(0,0,0,0.35)] pb-[env(safe-area-inset-bottom)]"
+        )}
+      >
+        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {visibleNav.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex min-w-[68px] flex-1 flex-col items-center gap-1 px-2 pt-2.5 pb-2 transition-colors",
+                  isActive ? "text-[#AFE607]" : "text-white/45 active:text-white/70"
+                )}
+              >
+                <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />
+                <span className="text-[10px] font-medium leading-none tracking-wide">
+                  {item.short ?? item.label}
+                </span>
+                <span
+                  className={cn(
+                    "h-0.5 w-6 rounded-full transition-all",
+                    isActive ? "bg-[#AFE607]" : "bg-transparent"
+                  )}
+                />
+              </Link>
+            );
+          })}
+
+          <button
+            onClick={logout}
+            className="flex min-w-[68px] flex-1 flex-col items-center gap-1 px-2 pt-2.5 pb-2 text-white/45 active:text-red-400 transition-colors"
+          >
+            <LogOut size={20} />
+            <span className="text-[10px] font-medium leading-none tracking-wide">Logout</span>
+            <span className="h-0.5 w-6 rounded-full bg-transparent" />
+          </button>
+        </div>
+      </nav>
     </>
   );
 }

@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getScope, paymentScopeFilter, businessScopeFilter } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { notifyVendor, paymentReceiptContent } from "@/lib/notify";
 
 // GET /api/payments — list payments with vendor info
 export async function GET(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.trim();
   const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 500);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...paymentScopeFilter(scope) };
   if (status && status !== "All") where.status = status;
   if (search) {
     where.OR = [
@@ -43,6 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scope = await getScope(user);
 
   try {
     const body = await request.json();
@@ -53,8 +57,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "vendor_number and amount are required" }, { status: 400 });
     }
 
-    const business = await prisma.business.findUnique({
-      where: { vendor_number: vendorNumberStr.toUpperCase() },
+    const business = await prisma.business.findFirst({
+      where: {
+        AND: [
+          { vendor_number: vendorNumberStr.toUpperCase() },
+          businessScopeFilter(scope),
+        ],
+      },
       include: { business_type: true },
     });
     if (!business) return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
@@ -134,6 +143,16 @@ export async function POST(request: NextRequest) {
       resourceId: String(payment.payment_id),
       details: `Recorded ${channel} payment of MWK ${amountNum} for ${business.vendor_number} (${business.business_name})`,
     });
+
+    // Automatic receipt — no staff action required. Sent instantly via SMS
+    // when Twilio keys are configured, otherwise stored as a system receipt.
+    if (channel === "Cash") {
+      await notifyVendor({
+        kind: "receipt",
+        business,
+        content: paymentReceiptContent(business.vendor_number, amountNum, channel),
+      }).catch(() => undefined);
+    }
 
     return NextResponse.json({
       success: true,

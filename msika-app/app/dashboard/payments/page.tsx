@@ -1,5 +1,10 @@
 "use client";
 
+// Payments hub — the daily working surface: record cash payments and
+// watch the live transaction feed. Reminders are fully automatic
+// (dispatched every 30 minutes to unpaid vendors), so there is no
+// manual reminder workflow in the UI.
+
 import { useState, useEffect, useCallback } from "react";
 import { Search, Download, CheckCircle2, XCircle, Clock, PlusCircle, X } from "lucide-react";
 
@@ -20,6 +25,29 @@ const statusConfig: Record<string, { icon: React.ElementType; color: string; bg:
   Failed: { icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
   Pending: { icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
 };
+
+// Official brand marks for wallet channels
+const CHANNEL_LOGOS: Record<string, { src: string; alt: string }> = {
+  AirtelMoney: { src: "/brands/airtel.png", alt: "Airtel Money" },
+  TNMMpamba: { src: "/brands/tnm.png", alt: "TNM Mpamba" },
+};
+
+function ChannelBadge({ channel }: { channel: string }) {
+  const logo = CHANNEL_LOGOS[channel];
+  if (logo) {
+    return (
+      <span className="inline-flex items-center justify-center h-6 w-[52px] rounded-md bg-white border border-gray-100 overflow-hidden" title={logo.alt}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logo.src} alt={logo.alt} className="max-h-[18px] max-w-[44px] object-contain" />
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+      {channel}
+    </span>
+  );
+}
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -49,6 +77,7 @@ export default function PaymentsPage() {
     return () => clearTimeout(t);
   }, [load]);
 
+
   const recordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -61,7 +90,10 @@ export default function PaymentsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setRecordMsg({ ok: true, text: data.message || "Payment recorded" });
+        setRecordMsg({
+          ok: true,
+          text: `${data.message || "Payment recorded"} — an automatic receipt has been sent to the vendor.`,
+        });
         load();
       } else {
         setRecordMsg({ ok: false, text: data.error || "Failed to record payment" });
@@ -78,7 +110,7 @@ export default function PaymentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Payments</h1>
-          <p className="text-sm text-gray-500 mt-1">Track and record all market fee transactions</p>
+          <p className="text-sm text-gray-500 mt-1">Record fees and follow the live transaction feed — reminders go out automatically</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -153,10 +185,19 @@ export default function PaymentsPage() {
                     <option value="AirtelMoney">Airtel Money</option>
                     <option value="TNMMpamba">TNM Mpamba</option>
                   </select>
+                  {channel !== "Cash" && CHANNEL_LOGOS[channel] && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center h-7 w-[60px] rounded-md bg-white border border-gray-100 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={CHANNEL_LOGOS[channel].src} alt={CHANNEL_LOGOS[channel].alt} className="max-h-5 object-contain" />
+                      </span>
+                      <span className="text-[11px] text-gray-400">selected channel</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <p className="text-[11px] text-gray-400">
-                Cash payments are marked complete immediately — the vendor's map dot turns green. Wallet payments stay pending until the provider webhook confirms.
+                Cash payments are marked complete immediately — the vendor&apos;s map dot turns green and they receive an automatic receipt. Wallet payments stay pending until the provider confirms.
               </p>
               <button
                 type="submit"
@@ -236,14 +277,7 @@ export default function PaymentsPage() {
                       <td className="px-5 py-4 text-sm font-bold text-gray-800">MWK {Number(p.amount).toLocaleString()}</td>
                       <td className="px-5 py-4 text-sm text-gray-600">{p.fee_type}</td>
                       <td className="px-5 py-4">
-                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                          p.payment_channel === "AirtelMoney" ? "bg-red-50 text-red-600" :
-                          p.payment_channel === "TNMMpamba" ? "bg-blue-50 text-blue-600" :
-                          p.payment_channel === "Cash" ? "bg-amber-50 text-amber-700" :
-                          "bg-gray-100 text-gray-600"
-                        }`}>
-                          {p.payment_channel}
-                        </span>
+                        <ChannelBadge channel={p.payment_channel} />
                       </td>
                       <td className="px-5 py-4">
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
