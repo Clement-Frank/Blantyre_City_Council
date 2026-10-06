@@ -1,4 +1,3 @@
-import { prisma } from "./prisma";
 import { cookies } from "next/headers";
 
 export async function getCurrentCouncilId(): Promise<number | null> {
@@ -26,10 +25,10 @@ export async function getTenantWhere(councilId?: number | null) {
 export async function assertTenantAccess(requestedCouncilId: number) {
   const current = await getCurrentCouncilId();
   const userRole = (await cookies()).get("user_role")?.value;
-  
+
   // Super Admin can access all councils
   if (userRole === "Super Administrator") return;
-  
+
   if (current !== requestedCouncilId) {
     throw new Error("Unauthorized: Cross-tenant access denied");
   }

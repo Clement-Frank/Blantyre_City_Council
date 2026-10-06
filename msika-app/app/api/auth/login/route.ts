@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { signToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { collectors, roles, supervisors, users } from '@/src/db/schema';
 import { logAudit } from '@/lib/audit';
 import bcrypt from 'bcryptjs';
 
@@ -25,9 +27,11 @@ export async function POST(request: NextRequest) {
     } | null = null;
     let role = '';
 
-    const collector = await prisma.collector.findUnique({
-      where: { username: normalizedUsername },
-    });
+    const [collector] = await db
+      .select()
+      .from(collectors)
+      .where(eq(collectors.username, normalizedUsername))
+      .limit(1);
     if (collector && collector.is_active) {
       dbUser = {
         id: collector.collector_id,
@@ -39,9 +43,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!dbUser) {
-      const supervisor = await prisma.supervisor.findUnique({
-        where: { username: normalizedUsername },
-      });
+      const [supervisor] = await db
+        .select()
+        .from(supervisors)
+        .where(eq(supervisors.username, normalizedUsername))
+        .limit(1);
       if (supervisor && supervisor.is_active) {
         dbUser = {
           id: supervisor.supervisor_id,
@@ -54,10 +60,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (!dbUser) {
-      const admin = await prisma.user.findUnique({
-        where: { username: normalizedUsername },
-        include: { role: true },
-      });
+      const [admin] = await db
+        .select({
+          user_id: users.user_id,
+          username: users.username,
+          full_name: users.full_name,
+          password_hash: users.password_hash,
+          is_active: users.is_active,
+          role_name: roles.role_name,
+        })
+        .from(users)
+        .leftJoin(roles, eq(roles.role_id, users.role_id))
+        .where(eq(users.username, normalizedUsername))
+        .limit(1);
       if (admin && admin.is_active) {
         dbUser = {
           id: admin.user_id,
@@ -65,7 +80,7 @@ export async function POST(request: NextRequest) {
           full_name: admin.full_name,
           password_hash: admin.password_hash,
         };
-        role = admin.role.role_name;
+        role = admin.role_name ?? '';
       }
     }
 

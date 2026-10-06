@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  businesses,
+  marketSections,
+  payments,
+  revenueSummaries,
+} from "@/src/db/schema";
 import { getSessionUser } from "@/lib/session";
-import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
+import { getScope, businessScopeSql, paymentScopeSql } from "@/lib/permissions";
 
 // GET /api/dashboard — market growth + collection stats, scoped to the user's role
 export async function GET() {
@@ -15,18 +22,24 @@ export async function GET() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const scope = await getScope(user);
-  const bizFilter = businessScopeFilter(scope);
-  const payFilter = paymentScopeFilter(scope);
+  const bizScope = businessScopeSql(scope, {
+    registeredBy: businesses.registered_by_collector_id,
+    marketId: businesses.market_id,
+  });
+  const payScope = paymentScopeSql(scope, {
+    collectorId: payments.collector_id,
+    businessId: payments.business_id,
+  });
   // Revenue summaries roll up per sub-office — supervisors only see their own
-  const subOfficeFilter = scope.subOfficeId ? { sub_office_id: scope.subOfficeId } : {};
+  const summaryWhere = scope.subOfficeId ? eq(revenueSummaries.sub_office_id, scope.subOfficeId) : undefined;
 
   const [
     totalVendors,
     activeVendors,
     paidToday,
-    revenueTodayAgg,
-    revenueYesterdayAgg,
-    revenueMonthAgg,
+    revenueTodayRows,
+    revenueYesterdayRows,
+    revenueMonthRows,
     paymentsToday,
     failedToday,
     newVendorsWeek,
@@ -35,58 +48,120 @@ export async function GET() {
     monthPayments,
     dailySeries,
   ] = await Promise.all([
-    prisma.business.count({ where: bizFilter }),
-    prisma.business.count({ where: { AND: [{ status: "Active" }, bizFilter] } }),
-    prisma.payment.findMany({
-      where: { AND: [{ status: "Completed", paid_at: { gte: today } }, payFilter] },
-      select: { business_id: true },
-    }),
-    prisma.payment.aggregate({
-      where: { AND: [{ status: "Completed", paid_at: { gte: today } }, payFilter] },
-      _sum: { amount: true },
-    }),
-    prisma.payment.aggregate({
-      where: { AND: [{ status: "Completed", paid_at: { gte: yesterday, lt: today } }, payFilter] },
-      _sum: { amount: true },
-    }),
-    prisma.payment.aggregate({
-      where: { AND: [{ status: "Completed", paid_at: { gte: monthStart } }, payFilter] },
-      _sum: { amount: true },
-    }),
-    prisma.payment.count({
-      where: { AND: [{ status: "Completed", paid_at: { gte: today } }, payFilter] },
-    }),
-    prisma.payment.count({
-      where: { AND: [{ paid_at: { gte: today }, status: "Failed" }, payFilter] },
-    }),
-    prisma.business.count({ where: { AND: [{ registration_date: { gte: weekAgo } }, bizFilter] } }),
-    prisma.revenueSummary.findMany({
-      where: { AND: [{ summary_date: { gte: weekAgo } }, subOfficeFilter] },
-      orderBy: { summary_date: "asc" },
-    }),
-    // Section breakdown computed from scoped businesses (replaces the old raw SQL
-    // so every role only sees its own vendors' revenue)
-    prisma.business.findMany({
-      where: bizFilter,
-      select: { business_id: true, section: { select: { section_name: true } } },
-    }),
-    prisma.payment.findMany({
-      where: { AND: [{ status: "Completed", paid_at: { gte: monthStart } }, payFilter] },
-      select: { business_id: true, amount: true },
-    }),
-    prisma.revenueSummary.findMany({
-      where: { AND: [{ summary_date: { gte: new Date(today.getTime() - 29 * 86400000) } }, subOfficeFilter] },
-      orderBy: { summary_date: "asc" },
-    }),
+    db.select({ n: sql<number>`count(*)::int` }).from(businesses).where(bizScope),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(businesses)
+      .where(bizScope ? and(eq(businesses.status, "Active"), bizScope) : eq(businesses.status, "Active")),
+    db
+      .select({ business_id: payments.business_id })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, today),
+          payScope
+        )
+      ),
+    db
+      .select({ sum: sql<string>`sum(${payments.amount})` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, today),
+          payScope
+        )
+      ),
+    db
+      .select({ sum: sql<string>`sum(${payments.amount})` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, yesterday),
+          lt(payments.paid_at, today),
+          payScope
+        )
+      ),
+    db
+      .select({ sum: sql<string>`sum(${payments.amount})` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, monthStart),
+          payScope
+        )
+      ),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, today),
+          payScope
+        )
+      ),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(payments)
+      .where(
+        and(
+          gte(payments.paid_at, today),
+          eq(payments.status, "Failed"),
+          payScope
+        )
+      ),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(businesses)
+      .where(bizScope ? and(gte(businesses.registration_date, weekAgo), bizScope) : gte(businesses.registration_date, weekAgo)),
+    db
+      .select()
+      .from(revenueSummaries)
+      .where(
+        summaryWhere ? and(gte(revenueSummaries.summary_date, summaryDayKey(weekAgo)), summaryWhere) : gte(revenueSummaries.summary_date, summaryDayKey(weekAgo))
+      )
+      .orderBy(asc(revenueSummaries.summary_date)),
+    db
+      .select({
+        business_id: businesses.business_id,
+        section_name: marketSections.section_name,
+      })
+      .from(businesses)
+      .leftJoin(marketSections, eq(marketSections.section_id, businesses.section_id))
+      .where(bizScope),
+    db
+      .select({ business_id: payments.business_id, amount: payments.amount })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "Completed"),
+          gte(payments.paid_at, monthStart),
+          payScope
+        )
+      ),
+    db
+      .select()
+      .from(revenueSummaries)
+      .where(
+        summaryWhere
+          ? and(gte(revenueSummaries.summary_date, summaryDayKey(new Date(today.getTime() - 29 * 86400000))), summaryWhere)
+          : gte(revenueSummaries.summary_date, summaryDayKey(new Date(today.getTime() - 29 * 86400000)))
+      )
+      .orderBy(asc(revenueSummaries.summary_date)),
   ]);
 
-  const revenueToday = Number(revenueTodayAgg._sum.amount ?? 0);
-  const revenueYesterday = Number(revenueYesterdayAgg._sum.amount ?? 0);
-  const revenueMonth = Number(revenueMonthAgg._sum.amount ?? 0);
-  const expectedToday = activeVendors * 300; // rough expected daily collection
+  const revenueToday = Number(revenueTodayRows[0]?.sum ?? 0);
+  const revenueYesterday = Number(revenueYesterdayRows[0]?.sum ?? 0);
+  const revenueMonth = Number(revenueMonthRows[0]?.sum ?? 0);
+  const expectedToday = (activeVendors[0]?.n ?? 0) * 300; // rough expected daily collection
 
   const paidVendorIds = new Set(paidToday.map((p) => p.business_id));
-  const complianceToday = activeVendors ? Math.round((paidVendorIds.size / activeVendors) * 100) : 0;
+  const activeCount = activeVendors[0]?.n ?? 0;
+  const complianceToday = activeCount ? Math.round((paidVendorIds.size / activeCount) * 100) : 0;
 
   const growthPct = revenueYesterday > 0 ? Math.round(((revenueToday - revenueYesterday) / revenueYesterday) * 100) : null;
 
@@ -94,7 +169,7 @@ export async function GET() {
   const sectionMap = new Map<string, { vendors: number; revenue: number }>();
   const bizSection = new Map<number, string>();
   for (const b of scopedBusinesses) {
-    const name = b.section?.section_name ?? "Unassigned";
+    const name = b.section_name ?? "Unassigned";
     bizSection.set(b.business_id, name);
     const cur = sectionMap.get(name) ?? { vendors: 0, revenue: 0 };
     cur.vendors++;
@@ -112,30 +187,38 @@ export async function GET() {
 
   return NextResponse.json({
     stats: {
-      total_vendors: totalVendors,
-      active_vendors: activeVendors,
+      total_vendors: totalVendors[0]?.n ?? 0,
+      active_vendors: activeCount,
       paid_today: paidVendorIds.size,
-      unpaid_today: activeVendors - paidVendorIds.size,
+      unpaid_today: activeCount - paidVendorIds.size,
       compliance_today: complianceToday,
       revenue_today: revenueToday,
       revenue_yesterday: revenueYesterday,
       revenue_month: revenueMonth,
       revenue_growth_pct: growthPct,
-      transactions_today: paymentsToday,
-      failed_today: failedToday,
-      new_vendors_week: newVendorsWeek,
+      transactions_today: paymentsToday[0]?.n ?? 0,
+      failed_today: failedToday[0]?.n ?? 0,
+      new_vendors_week: newVendorsWeek[0]?.n ?? 0,
       collection_rate: expectedToday ? Math.round((revenueToday / expectedToday) * 100) : 0,
     },
     section_breakdown,
     weekly_revenue: weeklyRevenue.map((r) => ({
-      date: r.summary_date.toISOString().slice(0, 10),
+      date: summaryDateToIso(r.summary_date),
       amount: Number(r.total_amount),
       transactions: r.total_transactions,
     })),
     daily_series: dailySeries.map((r) => ({
-      date: r.summary_date.toISOString().slice(0, 10),
+      date: summaryDateToIso(r.summary_date),
       amount: Number(r.total_amount),
       transactions: r.total_transactions,
     })),
   });
+}
+
+// RevenueSummary.summary_date is a date column (string keys in Drizzle).
+function summaryDayKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+function summaryDateToIso(d: string): string {
+  return new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10);
 }

@@ -1,5 +1,15 @@
-import { prisma } from "./prisma";
-import { getScope, businessScopeFilter, paymentScopeFilter } from "./permissions";
+import { and, asc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { db } from "./db";
+import {
+  businesses as businessesTable,
+  businessTypes as businessTypesTable,
+  collectors as collectorsTable,
+  marketSections as marketSectionsTable,
+  markets as marketsTable,
+  payments as paymentsTable,
+  subOffices as subOfficesTable,
+} from "@/src/db/schema";
+import { businessScopeSql, paymentScopeSql } from "./permissions";
 
 // ============================================================
 // Msika Market Intelligence Engine
@@ -258,48 +268,70 @@ export async function buildMarketIntel(scope: {
   today.setHours(0, 0, 0, 0);
   const windowStart = new Date(today.getTime() - (WINDOW - 1) * 86400000);
 
-  const bizFilter = businessScopeFilter(scope);
-  const payFilter = paymentScopeFilter(scope);
+  const bizWhere = and(
+    eq(businessesTable.status, "Active"),
+    businessScopeSql(scope, { registeredBy: businessesTable.registered_by_collector_id, marketId: businessesTable.market_id })
+  );
+  const payWhere = and(
+    eq(paymentsTable.status, "Completed"),
+    gte(paymentsTable.paid_at, windowStart),
+    paymentScopeSql(scope, { collectorId: paymentsTable.collector_id, businessId: paymentsTable.business_id })
+  );
 
-  const [market, vendors, payments, collectorRows, collectors] = await Promise.all([
+  const [marketRows, vendorsRaw, payments, collectorRows, collectors] = await Promise.all([
     // The council's flagship market — real record, not mock data.
-    prisma.market.findFirst({
-      where: scope.subOfficeId && scope.role === "Supervisor" ? { sub_office_id: scope.subOfficeId } : undefined,
-      orderBy: { market_id: "asc" },
-      include: { sub_office: { select: { name: true } } },
-    }),
-    prisma.business.findMany({
-      where: { AND: [{ status: "Active" as const }, bizFilter] },
-      select: {
-        business_id: true,
-        vendor_number: true,
-        business_name: true,
-        owner_name: true,
-        registration_date: true,
-        market_id: true,
-        section: { select: { section_name: true } },
-        business_type: { select: { fee_amount: true } },
-      },
-    }),
-    prisma.payment.findMany({
-      where: { AND: [{ status: "Completed" as const, paid_at: { gte: windowStart } }, payFilter] },
-      select: { business_id: true, paid_at: true, amount: true },
-    }),
-    prisma.payment.groupBy({
-      by: ["collector_id"],
-      where: {
-        AND: [
-          { status: "Completed" as const, paid_at: { gte: windowStart }, collector_id: { not: null } },
-          payFilter,
-        ],
-      },
-      _count: { payment_id: true },
-      _sum: { amount: true },
-    }),
-    prisma.collector.findMany({
-      select: { collector_id: true, full_name: true, sub_office_id: true },
-    }),
+    db
+      .select({
+        market_id: marketsTable.market_id,
+        name: marketsTable.name,
+        location: marketsTable.location,
+        sub_office: subOfficesTable.name,
+      })
+      .from(marketsTable)
+      .leftJoin(subOfficesTable, eq(subOfficesTable.sub_office_id, marketsTable.sub_office_id))
+      .where(scope.subOfficeId && scope.role === "Supervisor" ? eq(marketsTable.sub_office_id, scope.subOfficeId) : undefined)
+      .orderBy(asc(marketsTable.market_id))
+      .limit(1),
+    db
+      .select({
+        business_id: businessesTable.business_id,
+        vendor_number: businessesTable.vendor_number,
+        business_name: businessesTable.business_name,
+        owner_name: businessesTable.owner_name,
+        registration_date: businessesTable.registration_date,
+        market_id: businessesTable.market_id,
+        section_name: marketSectionsTable.section_name,
+        fee_amount: businessTypesTable.fee_amount,
+      })
+      .from(businessesTable)
+      .leftJoin(marketSectionsTable, eq(marketSectionsTable.section_id, businessesTable.section_id))
+      .leftJoin(businessTypesTable, eq(businessTypesTable.business_type_id, businessesTable.business_type_id))
+      .where(bizWhere),
+    db
+      .select({ business_id: paymentsTable.business_id, paid_at: paymentsTable.paid_at, amount: paymentsTable.amount })
+      .from(paymentsTable)
+      .where(payWhere),
+    db
+      .select({
+        collector_id: paymentsTable.collector_id,
+        _count: { payment_id: sql<number>`count(*)::int` },
+        _sum: { amount: sql<string>`sum(${paymentsTable.amount})` },
+      })
+      .from(paymentsTable)
+      .where(and(payWhere, isNotNull(paymentsTable.collector_id)))
+      .groupBy(paymentsTable.collector_id),
+    db
+      .select({ collector_id: collectorsTable.collector_id, full_name: collectorsTable.full_name, sub_office_id: collectorsTable.sub_office_id })
+      .from(collectorsTable),
   ]);
+
+  // Stitch to the row shapes the scoring code below already expects.
+  const market = marketRows[0];
+  const vendors = vendorsRaw.map((v) => ({
+    ...v,
+    section: v.section_name ? { section_name: v.section_name } : null,
+    business_type: v.fee_amount != null ? { fee_amount: v.fee_amount } : null,
+  }));
 
   // Paid-date sets per vendor + 30-day revenue per vendor
   const paysByVendor = new Map<number, Set<string>>();
@@ -419,7 +451,7 @@ export async function buildMarketIntel(scope: {
       market_id: market?.market_id ?? 1,
       name: market?.name ?? "Limbe Market",
       location: market?.location ?? "Limbe, Blantyre",
-      sub_office: market?.sub_office?.name ?? null,
+      sub_office: market?.sub_office ?? null,
       vendors: intel.length,
       sections: sections.filter((s) => s.section !== "Unassigned").length,
     },

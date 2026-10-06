@@ -1,4 +1,6 @@
-import { prisma } from "./prisma";
+import { and, eq, gte } from "drizzle-orm";
+import { db } from "./db";
+import { businesses, notifications, payments } from "@/src/db/schema";
 import { notifyVendor } from "./notify";
 
 const REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000; // one reminder per vendor per 6h
@@ -43,29 +45,31 @@ export async function runAutoReminders(force = false): Promise<AutoReminderResul
   const sixHoursAgo = new Date(now - REMINDER_COOLDOWN_MS);
 
   const [paidRows, activeVendors, recentReminders] = await Promise.all([
-    prisma.payment.findMany({
-      where: { status: "Completed", paid_at: { gte: today } },
-      select: { business_id: true },
-    }),
-    prisma.business.findMany({
-      where: { status: "Active" },
-      select: {
-        business_id: true,
-        vendor_number: true,
-        business_name: true,
-        owner_name: true,
-        phone_number: true,
-      },
-    }),
+    db
+      .select({ business_id: payments.business_id })
+      .from(payments)
+      .where(and(eq(payments.status, "Completed"), gte(payments.paid_at, today))),
+    db
+      .select({
+        business_id: businesses.business_id,
+        vendor_number: businesses.vendor_number,
+        business_name: businesses.business_name,
+        owner_name: businesses.owner_name,
+        phone_number: businesses.phone_number,
+      })
+      .from(businesses)
+      .where(eq(businesses.status, "Active")),
     // Reminders sent within the cooldown window, for per-vendor throttling
-    prisma.notification.findMany({
-      where: {
-        channel: "Reminder",
-        recipient_type: "Business",
-        created_at: { gte: sixHoursAgo },
-      },
-      select: { recipient_id: true },
-    }),
+    db
+      .select({ recipient_id: notifications.recipient_id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.channel, "Reminder"),
+          eq(notifications.recipient_type, "Business"),
+          gte(notifications.created_at, sixHoursAgo)
+        )
+      ),
   ]);
 
   const paidSet = new Set(paidRows.map((p) => p.business_id));

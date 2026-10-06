@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, desc, eq, gte, or, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  businesses,
+  businessTypes,
+  marketSections,
+  markets,
+  payments,
+} from "@/src/db/schema";
 import { getSessionUser } from "@/lib/session";
-import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
+import { getScope, businessScopeSql, paymentScopeSql } from "@/lib/permissions";
 
 // GET /api/payments/verify?vendor_number=V-01001
 export async function GET(request: NextRequest) {
@@ -13,19 +21,28 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("vendor_number")?.trim();
   if (!q) return NextResponse.json({ error: "vendor_number is required" }, { status: 400 });
 
-  const business = await prisma.business.findFirst({
-    where: {
-      AND: [
-        { OR: [{ vendor_number: q.toUpperCase() }, { phone_number: q }] },
-        businessScopeFilter(scope),
-      ],
-    },
-    include: {
-      market: { select: { name: true } },
-      section: { select: { section_name: true } },
-      business_type: { select: { fee_amount: true } },
-    },
+  const bizScope = businessScopeSql(scope, {
+    registeredBy: businesses.registered_by_collector_id,
+    marketId: businesses.market_id,
   });
+  const idCondition = or(eq(businesses.vendor_number, q.toUpperCase()), eq(businesses.phone_number, q));
+
+  const [business] = await db
+    .select({
+      business_id: businesses.business_id,
+      vendor_number: businesses.vendor_number,
+      business_name: businesses.business_name,
+      owner_name: businesses.owner_name,
+      market_name: markets.name,
+      section_name: marketSections.section_name,
+      fee_amount: businessTypes.fee_amount,
+    })
+    .from(businesses)
+    .leftJoin(markets, eq(markets.market_id, businesses.market_id))
+    .leftJoin(marketSections, eq(marketSections.section_id, businesses.section_id))
+    .leftJoin(businessTypes, eq(businessTypes.business_type_id, businesses.business_type_id))
+    .where(bizScope ? and(idCondition, bizScope) : idCondition)
+    .limit(1);
 
   if (!business) {
     return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
@@ -34,27 +51,40 @@ export async function GET(request: NextRequest) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const todayPayment = await prisma.payment.findFirst({
-    where: { business_id: business.business_id, status: "Completed", paid_at: { gte: today } },
-    orderBy: { paid_at: "desc" },
-  });
+  const [todayPayment] = await db
+    .select()
+    .from(payments)
+    .where(
+      and(eq(payments.business_id, business.business_id), eq(payments.status, "Completed"), gte(payments.paid_at, today))
+    )
+    .orderBy(desc(payments.paid_at))
+    .limit(1);
 
-  const history = await prisma.payment.findMany({
-    where: { business_id: business.business_id, ...paymentScopeFilter(scope) },
-    orderBy: { paid_at: "desc" },
-    take: 10,
-  });
+  const history = await db
+    .select()
+    .from(payments)
+    .where(
+      and(
+        eq(payments.business_id, business.business_id),
+        paymentScopeSql(scope, {
+          collectorId: payments.collector_id,
+          businessId: payments.business_id,
+        }) ?? sql`true`
+      )
+    )
+    .orderBy(desc(payments.paid_at))
+    .limit(10);
 
   return NextResponse.json({
     vendor: {
       vendor_number: business.vendor_number,
       business_name: business.business_name,
       owner_name: business.owner_name,
-      market: business.market?.name,
-      section: business.section?.section_name,
-      daily_fee: business.business_type?.fee_amount,
+      market: business.market_name,
+      section: business.section_name,
+      daily_fee: business.fee_amount,
       paid_today: Boolean(todayPayment),
-      today_payment: todayPayment,
+      today_payment: todayPayment ?? null,
       history,
     },
   });
