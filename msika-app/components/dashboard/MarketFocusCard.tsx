@@ -1,7 +1,7 @@
 "use client";
 
 // Market Focus — dashboard snapshot from the ONE market-intel engine,
-// identical numbers to the Limbe Market Command Center. Links into the
+// identical numbers to the Markets module. Links into the
 // full module instead of duplicating its statistics.
 
 import { useEffect, useState } from "react";
@@ -127,7 +127,7 @@ export default function MarketFocusCard() {
         href="/dashboard/markets"
         className="mt-4 inline-flex items-center justify-center gap-1.5 w-full px-4 py-2.5 bg-[#0E0E0B] hover:bg-[#1A1A16] text-[#AFE607] text-xs font-bold rounded-xl transition-colors"
       >
-        Open Market Command Center
+        Open Markets
         <ArrowUpRight size={13} />
       </Link>
     </div>
