@@ -1,7 +1,8 @@
 // ============================================================
 // Geo-fencing engine for Blantyre City Council markets.
-// The Limbe Market fence is an approximate boundary polygon of
-// the Limbe trading area (market + surrounding vendor streets).
+// The Limbe Market fence traces the real market grounds and its
+// adjacent vendor streets (Dalton Road / Dunduzu Road area) as
+// mapped on OpenStreetMap (way 95918307, centroid -15.8171, 35.0539).
 // Coordinates: [latitude, longitude].
 // ============================================================
 
@@ -15,30 +16,31 @@ export interface GeofenceResult {
   distanceMeters: number;
 }
 
-// Approximate boundary of Limbe Market trading area, Blantyre, Malawi.
-// Traced around the market core + adjacent vendor streets.
-export const LIMBE_MARKET_CENTER: LatLng = { lat: -15.7987, lng: 35.0058 };
+// Real location of Limbe Market, Blantyre, Malawi (OpenStreetMap).
+export const LIMBE_MARKET_CENTER: LatLng = { lat: -15.8171, lng: 35.0539 };
 
+// Boundary of the Limbe Market trading area: the market grounds plus
+// the surrounding vendor streets where stalls are licensed.
 export const LIMBE_MARKET_BOUNDARY: LatLng[] = [
-  { lat: -15.7945, lng: 35.0012 },
-  { lat: -15.7941, lng: 35.0096 },
-  { lat: -15.7978, lng: 35.0122 },
-  { lat: -15.8028, lng: 35.0114 },
-  { lat: -15.8052, lng: 35.0078 },
-  { lat: -15.8041, lng: 35.0028 },
-  { lat: -15.7988, lng: 35.0002 },
-  { lat: -15.7958, lng: 35.0006 },
+  { lat: -15.8135, lng: 35.0495 },
+  { lat: -15.8132, lng: 35.058 },
+  { lat: -15.817, lng: 35.059 },
+  { lat: -15.8215, lng: 35.058 },
+  { lat: -15.8225, lng: 35.0535 },
+  { lat: -15.8205, lng: 35.0495 },
+  { lat: -15.8165, lng: 35.0485 },
+  { lat: -15.8145, lng: 35.0488 },
 ];
 
 // Section anchor points inside the fence — used to auto-place a
 // vendor's stall when GPS is not supplied at registration.
 export const LIMBE_SECTION_ANCHORS: Record<string, LatLng> = {
-  Vegetables: { lat: -15.7962, lng: 35.0034 },
-  Fish: { lat: -15.7971, lng: 35.0049 },
-  Textiles: { lat: -15.7989, lng: 35.0061 },
-  Hardware: { lat: -15.8002, lng: 35.0072 },
-  Groceries: { lat: -15.8011, lng: 35.0051 },
-  Restaurants: { lat: -15.7995, lng: 35.0039 },
+  Vegetables: { lat: -15.8146, lng: 35.0515 },
+  Fish: { lat: -15.8155, lng: 35.053 },
+  Textiles: { lat: -15.8173, lng: 35.0542 },
+  Hardware: { lat: -15.8186, lng: 35.0553 },
+  Groceries: { lat: -15.8195, lng: 35.0532 },
+  Restaurants: { lat: -15.8179, lng: 35.052 },
 };
 
 // Ray-casting point-in-polygon test.
