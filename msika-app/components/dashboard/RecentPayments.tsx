@@ -6,7 +6,7 @@
 // the official Airtel / TNM logos.
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { ArrowUpRight, Banknote, CheckCircle2, XCircle, Clock } from "lucide-react";
 import Link from "next/link";
 
 interface Payment {
@@ -41,6 +41,7 @@ function ChannelBadge({ channel }: { channel: string }) {
   }
   return (
     <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+      <Banknote size={11} className="mr-1" />
       {channel}
     </span>
   );

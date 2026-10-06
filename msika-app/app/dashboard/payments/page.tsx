@@ -6,7 +6,7 @@
 // manual reminder workflow in the UI.
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, Download, CheckCircle2, XCircle, Clock, PlusCircle, X } from "lucide-react";
+import { Search, Download, CheckCircle2, XCircle, Clock, PlusCircle, X, Banknote } from "lucide-react";
 
 interface Payment {
   payment_id: number;
@@ -185,6 +185,14 @@ export default function PaymentsPage() {
                     <option value="AirtelMoney">Airtel Money</option>
                     <option value="TNMMpamba">TNM Mpamba</option>
                   </select>
+                  {channel === "Cash" && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center h-7 w-[60px] rounded-md bg-amber-50 border border-amber-100 text-amber-600" title="Cash">
+                        <Banknote size={16} />
+                      </span>
+                      <span className="text-[11px] text-gray-400">cash — marked complete instantly</span>
+                    </div>
+                  )}
                   {channel !== "Cash" && CHANNEL_LOGOS[channel] && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="inline-flex items-center justify-center h-7 w-[60px] rounded-md bg-white border border-gray-100 overflow-hidden">

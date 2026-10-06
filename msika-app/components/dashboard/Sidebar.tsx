@@ -21,49 +21,57 @@ import CouncilLogo from "@/components/CouncilLogo";
 
 // Route visibility per role. Roles not listed for an item cannot see it.
 // `short` is the compact label shown in the mobile bottom tab bar.
+// `mobile: false` hides an item from the mobile tab bar — the bar only shows
+// the essential day-to-day modules; everything else stays on the desktop
+// sidebar where there is room for the full admin surface.
 const navItems: {
   label: string;
   href: string;
   icon: typeof LayoutDashboard;
   roles?: string[];
   short?: string;
+  mobile?: boolean;
 }[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, short: "Home" },
   { label: "Live Map", href: "/dashboard/map", icon: MapPinned, short: "Map" },
-  { label: "Vendors", href: "/dashboard/vendors", icon: Users },
-  { label: "Payments", href: "/dashboard/payments", icon: Receipt },
-  { label: "Reports", href: "/dashboard/reports", icon: BarChart3 },
+  { label: "Vendors", href: "/dashboard/vendors", icon: Users, short: "Vendors" },
+  { label: "Payments", href: "/dashboard/payments", icon: Receipt, short: "Pay" },
+  { label: "Reports", href: "/dashboard/reports", icon: BarChart3, mobile: false },
   {
     label: "Collectors",
     href: "/dashboard/collectors",
     icon: UserCheck,
     roles: ["Administrator"],
+    mobile: false,
   },
   {
     label: "Supervisors",
     href: "/dashboard/supervisors",
     icon: Shield,
     roles: ["Administrator"],
+    mobile: false,
   },
   {
-    label: "Market Center",
+    label: "Markets",
     href: "/dashboard/markets",
     icon: Store,
-    short: "Market",
+    short: "Markets",
   },
   {
     label: "API Management",
     href: "/dashboard/api-management",
     icon: Key,
     roles: ["Administrator"],
+    mobile: false,
   },
   {
     label: "Audit Logs",
     href: "/dashboard/audit-logs",
     icon: Shield,
     roles: ["Administrator"],
+    mobile: false,
   },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings, mobile: false },
 ];
 
 export default function Sidebar() {
@@ -74,6 +82,9 @@ export default function Sidebar() {
   const visibleNav = navItems.filter(
     (item) => !item.roles || (user && item.roles.includes(user.role))
   );
+
+  // Mobile tab bar shows only the essential modules for the role
+  const mobileNav = visibleNav.filter((item) => item.mobile !== false);
 
   return (
     <>
@@ -145,16 +156,15 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile navigation tabs — always visible bottom bar, no hamburger.
-          Horizontally scrollable so every role-pruned route stays reachable. */}
+      {/* Mobile navigation tabs — only essential modules, no scrolling */}
       <nav
         className={cn(
           "lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0E0E0B] border-t border-[#2A2A24]",
           "shadow-[0_-6px_24px_rgba(0,0,0,0.35)] pb-[env(safe-area-inset-bottom)]"
         )}
       >
-        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {visibleNav.map((item) => {
+        <div className="flex">
+          {mobileNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 

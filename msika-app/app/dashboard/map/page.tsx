@@ -7,7 +7,7 @@
 // the side panel traces every unpaid stall for one-tap follow-up.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshCw, MapPin, Crosshair, AlertTriangle, Banknote, Loader2, CheckCircle2, Navigation, ListFilter } from "lucide-react";
+import { RefreshCw, MapPin, Crosshair, AlertTriangle, Banknote, Loader2, CheckCircle2, Navigation, ListFilter, Satellite } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -46,6 +46,8 @@ export default function LiveMapPage() {
   const [paying, setPaying] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // Satellite basemap (Google/Esri tiles) with a streets fallback
+  const [satellite, setSatellite] = useState(true);
   const [mapLib, setMapLib] = useState<{
     L: typeof import("leaflet");
     reactLeaflet: typeof import("react-leaflet");
@@ -153,6 +155,17 @@ export default function LiveMapPage() {
             </button>
           ))}
           <button
+            onClick={() => setSatellite((s) => !s)}
+            className={`p-2 rounded-xl border transition-colors ${
+              satellite
+                ? "bg-[#0E0E0B] border-[#0E0E0B] text-[#AFE607]"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+            title={satellite ? "Switch to street map" : "Switch to satellite view"}
+          >
+            <Satellite size={16} />
+          </button>
+          <button
             onClick={() => load(filter)}
             className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             title="Refresh"
@@ -192,10 +205,17 @@ export default function LiveMapPage() {
                 maxBoundsViscosity={1.0}
                 style={{ height: "100%", width: "100%", background: "#e8ecea" }}
               >
-                <mapLib.reactLeaflet.TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                {satellite ? (
+                  <mapLib.reactLeaflet.TileLayer
+                    attribution='Imagery &copy; <a href="https://www.google.com/maps">Google</a>, tiles &copy; Esri'
+                    url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
+                  />
+                ) : (
+                  <mapLib.reactLeaflet.TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                )}
 
                 {/* Geo-fence: shaded market boundary */}
                 <mapLib.reactLeaflet.Polygon

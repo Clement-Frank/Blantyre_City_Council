@@ -1,141 +1,128 @@
 "use client";
 
-// Settings — real account information from the authenticated session and
-// the live status of background automation. No fake preference forms:
-// everything shown here reflects actual system state.
+import { useState } from "react";
+import { Save, Bell, Shield, User, Building2 } from "lucide-react";
 
-import { useEffect, useState } from "react";
-import { User, ShieldCheck, BellRing, Building2, Loader2 } from "lucide-react";
-
-interface Me {
-  userId?: number;
-  username: string;
-  role: string;
-  fullName: string;
-}
+const tabs = [
+  { id: "profile", label: "Profile", icon: User },
+  { id: "security", label: "Security", icon: Shield },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "organization", label: "Organization", icon: Building2 },
+];
 
 export default function SettingsPage() {
-  const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setMe(d))
-      .catch(() => setMe(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="py-24 text-center">
-        <Loader2 size={18} className="animate-spin inline text-gray-400" />
-      </div>
-    );
-  }
+  const [activeTab, setActiveTab] = useState("profile");
 
   return (
     <div className="space-y-6 max-w-[1000px]">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Your account and the system&apos;s live automation status</p>
+        <p className="text-sm text-gray-500 mt-1">Manage your account and system preferences</p>
       </div>
 
-      {/* Account — from the real session */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center gap-2">
-          <User size={15} className="text-[#3d5a45]" />
-          <h2 className="text-sm font-bold text-gray-800">Account</h2>
+        <div className="flex border-b border-gray-100 overflow-x-auto">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-[#3d5a45] text-[#3d5a45]"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Full name</p>
-            <p className="text-sm font-semibold text-gray-800">{me?.fullName || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Username</p>
-            <p className="text-sm font-mono text-gray-800">{me?.username || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Role</p>
-            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e8f0ec] text-[#3d5a45] border border-[#d8e6dd]">
-              {me?.role || "—"}
-            </span>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Session</p>
-            <p className="text-sm text-gray-600">Signed in · expires after 8 hours of inactivity</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Automation — what the system does on its own */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center gap-2">
-          <BellRing size={15} className="text-[#3d5a45]" />
-          <h2 className="text-sm font-bold text-gray-800">Background automation</h2>
-        </div>
-        <div className="divide-y divide-gray-50">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Payment reminders</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Sent automatically every 30 minutes to vendors who haven&apos;t paid — SMS receipts and
-                registration confirmations are also dispatched automatically.
-              </p>
+        <div className="p-6">
+          {activeTab === "profile" && (
+            <div className="space-y-5 max-w-lg">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name</label>
+                  <input type="text" defaultValue="Sarah" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name</label>
+                  <input type="text" defaultValue="Miller" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <input type="email" defaultValue="sarah.miller@bcc.mw" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Role</label>
+                <input type="text" defaultValue="System Administrator" disabled className="w-full px-4 py-2.5 bg-gray-100 border border-gray-100 rounded-xl text-sm text-gray-500" />
+              </div>
             </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 whitespace-nowrap">
-              Always on
-            </span>
-          </div>
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Wallet confirmations</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Airtel Money and TNM Mpamba webhook confirmations are processed instantly — payments
-                flip from Pending to Completed the moment the provider confirms.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 whitespace-nowrap">
-              Live
-            </span>
-          </div>
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Reliability scoring</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                The Msika Reliability Index recomputes on every view from real payment history —
-                no nightly batch to configure.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 whitespace-nowrap">
-              On demand
-            </span>
-          </div>
-        </div>
-      </div>
+          )}
 
-      {/* Organization */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center gap-2">
-          <Building2 size={15} className="text-[#3d5a45]" />
-          <h2 className="text-sm font-bold text-gray-800">Organization</h2>
-        </div>
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Council</p>
-            <p className="text-sm font-semibold text-gray-800">Blantyre City Council</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Operating market</p>
-            <p className="text-sm font-semibold text-gray-800">Limbe Market — Limbe Sub Office</p>
-          </div>
-        </div>
-      </div>
+          {activeTab === "security" && (
+            <div className="space-y-5 max-w-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                <input type="password" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <input type="password" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+                <input type="password" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+              </div>
+            </div>
+          )}
 
-      <div className="flex items-center gap-2 text-xs text-gray-400 px-1">
-        <ShieldCheck size={13} className="text-[#3d5a45]" />
-        Access to every module is role-scoped — your data view matches what you&apos;re permitted to see.
+          {activeTab === "notifications" && (
+            <div className="space-y-4 max-w-lg">
+              {["Payment confirmations", "Daily revenue summary", "Failed payment alerts", "New vendor registrations"].map((item) => (
+                <div key={item} className="flex items-center justify-between py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{item}</p>
+                    <p className="text-xs text-gray-500">Receive via email and SMS</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3d5a45]"></div>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "organization" && (
+            <div className="space-y-5 max-w-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Council Name</label>
+                <input type="text" defaultValue="Blantyre City Council" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Default Market</label>
+                <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30">
+                  <option>Limbe Market</option>
+                  <option>Mpemba Market</option>
+                  <option>Chadzunda Market</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end">
+            <button className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors">
+              <Save size={16} />
+              Save Changes
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
