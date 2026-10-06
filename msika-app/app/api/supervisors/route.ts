@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { markets, subOffices, supervisors } from "@/src/db/schema";
+import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
@@ -14,23 +12,21 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
   }
 
-  const [supervisorRows, subOfficeRows, marketRows] = await Promise.all([
-    db.select().from(supervisors).orderBy(asc(supervisors.supervisor_id)),
-    db.select({ sub_office_id: subOffices.sub_office_id, name: subOffices.name }).from(subOffices),
-    db.select({ sub_office_id: markets.sub_office_id, name: markets.name }).from(markets),
-  ]);
-
-  const data = supervisorRows.map((s) => {
-    const office = subOfficeRows.find((o) => o.sub_office_id === s.sub_office_id);
-    return {
-      supervisor_id: s.supervisor_id,
-      full_name: s.full_name,
-      username: s.username,
-      sub_office: office?.name ?? "Unassigned",
-      markets: marketRows.filter((m) => m.sub_office_id === s.sub_office_id).map((m) => m.name),
-      is_active: s.is_active,
-    };
+  const supervisors = await prisma.supervisor.findMany({
+    include: {
+      sub_office: { select: { name: true, markets: { select: { name: true } } } },
+    },
+    orderBy: { supervisor_id: "asc" },
   });
+
+  const data = supervisors.map((s) => ({
+    supervisor_id: s.supervisor_id,
+    full_name: s.full_name,
+    username: s.username,
+    sub_office: s.sub_office?.name ?? "Unassigned",
+    markets: s.sub_office?.markets.map((m) => m.name) ?? [],
+    is_active: s.is_active,
+  }));
 
   return NextResponse.json({ supervisors: data, count: data.length });
 }
@@ -60,11 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [existing] = await db
-      .select({ supervisor_id: supervisors.supervisor_id })
-      .from(supervisors)
-      .where(eq(supervisors.username, usernameStr))
-      .limit(1);
+    const existing = await prisma.supervisor.findUnique({ where: { username: usernameStr } });
     if (existing) {
       return NextResponse.json(
         { error: "A supervisor with this username already exists" },
@@ -74,32 +66,16 @@ export async function POST(request: NextRequest) {
 
     const hash = await bcrypt.hash(passwordStr, 10);
 
-    const [supervisor] = await db
-      .insert(supervisors)
-      .values({
+    const supervisor = await prisma.supervisor.create({
+      data: {
         council_id: 1,
         sub_office_id: sub_office_id != null && sub_office_id !== "" ? Number(sub_office_id) : null,
         full_name: fullName,
         username: usernameStr,
         password_hash: hash,
-      })
-      .returning({
-        supervisor_id: supervisors.supervisor_id,
-        full_name: supervisors.full_name,
-        username: supervisors.username,
-        sub_office_id: supervisors.sub_office_id,
-        is_active: supervisors.is_active,
-      });
-
-    let officeName: string | undefined;
-    if (supervisor.sub_office_id) {
-      const [office] = await db
-        .select({ name: subOffices.name })
-        .from(subOffices)
-        .where(eq(subOffices.sub_office_id, supervisor.sub_office_id))
-        .limit(1);
-      officeName = office?.name;
-    }
+      },
+      include: { sub_office: { select: { name: true } } },
+    });
 
     await logAudit({
       actorType: "User",
@@ -117,7 +93,7 @@ export async function POST(request: NextRequest) {
         supervisor_id: supervisor.supervisor_id,
         full_name: supervisor.full_name,
         username: supervisor.username,
-        sub_office: officeName ?? "Unassigned",
+        sub_office: supervisor.sub_office?.name ?? "Unassigned",
         markets: [],
         is_active: supervisor.is_active,
       },
@@ -142,19 +118,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Supervisor id is required (?id=)" }, { status: 400 });
   }
 
-  const [supervisor] = await db
-    .select({ username: supervisors.username, full_name: supervisors.full_name })
-    .from(supervisors)
-    .where(eq(supervisors.supervisor_id, id))
-    .limit(1);
+  const supervisor = await prisma.supervisor.findUnique({ where: { supervisor_id: id } });
   if (!supervisor) {
     return NextResponse.json({ error: "Supervisor not found" }, { status: 404 });
   }
 
-  await db
-    .update(supervisors)
-    .set({ is_active: false })
-    .where(eq(supervisors.supervisor_id, id));
+  await prisma.supervisor.update({
+    where: { supervisor_id: id },
+    data: { is_active: false },
+  });
 
   await logAudit({
     actorType: "User",

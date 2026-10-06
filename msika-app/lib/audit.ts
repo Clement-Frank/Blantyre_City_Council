@@ -1,5 +1,4 @@
-import { db } from "./db";
-import { auditLogs } from "@/src/db/schema";
+import { prisma } from "./prisma";
 import { headers } from "next/headers";
 
 interface AuditParams {
@@ -20,20 +19,22 @@ export async function logAudit(params: AuditParams) {
     const ip = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "unknown";
     const userAgent = headersList.get("user-agent") || "unknown";
 
-    await db.insert(auditLogs).values({
-      council_id: params.councilId ?? null,
-      user_id: params.userId ?? null,
-      actor_type: params.actorType,
-      actor_id: params.actorId ?? null,
-      actor_name: params.actorName,
-      action: params.action,
-      resource: params.resource,
-      resource_id: params.resourceId ?? null,
-      details: params.details ?? null,
-      ip_address: ip,
-      user_agent: userAgent,
+    await prisma.auditLog.create({
+      data: {
+        council_id: params.councilId,
+        user_id: params.userId,
+        actor_type: params.actorType,
+        actor_id: params.actorId,
+        actor_name: params.actorName,
+        action: params.action,
+        resource: params.resource,
+        resource_id: params.resourceId,
+        details: params.details,
+        ip_address: ip,
+        user_agent: userAgent,
+      },
     });
   } catch (error) {
     console.error("Audit log failed:", error);
   }
-}
+}   

@@ -1,6 +1,4 @@
-import { db } from "./db";
-import { apiClients, apiKeys } from "@/src/db/schema";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { prisma } from "./prisma";
 import crypto from "crypto";
 
 export function hashApiKey(key: string): string {
@@ -35,38 +33,27 @@ export function parsePermissions(raw: string | null | undefined): string[] {
 
 export async function validateApiKey(key: string) {
   const hash = hashApiKey(key);
-  const [apiKey] = await db
-    .select({
-      api_key_id: apiKeys.api_key_id,
-      api_client_id: apiKeys.api_client_id,
-      permissions: apiKeys.permissions,
-      rate_limit: apiKeys.rate_limit,
-      client_name: apiClients.name,
-      client_council_id: apiClients.council_id,
-    })
-    .from(apiKeys)
-    .innerJoin(apiClients, eq(apiClients.api_client_id, apiKeys.api_client_id))
-    .where(
-      and(
-        eq(apiKeys.key_hash, hash),
-        eq(apiKeys.is_active, true),
-        or(isNull(apiKeys.expires_at), gt(apiKeys.expires_at, new Date()))
-      )
-    )
-    .limit(1);
+  const apiKey = await prisma.apiKey.findFirst({
+    where: {
+      key_hash: hash,
+      is_active: true,
+      OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+    },
+    include: { api_client: true },
+  });
 
   if (!apiKey) return null;
 
   // Update last used
-  await db
-    .update(apiKeys)
-    .set({ last_used_at: new Date() })
-    .where(eq(apiKeys.api_key_id, apiKey.api_key_id));
+  await prisma.apiKey.update({
+    where: { api_key_id: apiKey.api_key_id },
+    data: { last_used_at: new Date() },
+  });
 
   return {
     apiClientId: apiKey.api_client_id,
-    clientName: apiKey.client_name,
-    councilId: apiKey.client_council_id,
+    clientName: apiKey.api_client.name,
+    councilId: apiKey.api_client.council_id,
     permissions: parsePermissions(apiKey.permissions),
     rateLimit: apiKey.rate_limit,
   };

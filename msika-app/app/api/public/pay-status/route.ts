@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { businessTypes, businesses, markets, payments } from "@/src/db/schema";
+import { prisma } from "@/lib/prisma";
 import { makePayCode } from "@/lib/paycode";
 
 // GET /api/public/pay-status?vendor_number=V-01001
@@ -14,40 +12,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "vendor_number is required" }, { status: 400 });
   }
 
-  const [business] = await db
-    .select({
-      business_id: businesses.business_id,
-      vendor_number: businesses.vendor_number,
-      business_name: businesses.business_name,
-      owner_name: businesses.owner_name,
-      market_name: markets.name,
-      fee_amount: businessTypes.fee_amount,
-    })
-    .from(businesses)
-    .leftJoin(markets, eq(markets.market_id, businesses.market_id))
-    .leftJoin(businessTypes, eq(businessTypes.business_type_id, businesses.business_type_id))
-    .where(eq(businesses.vendor_number, vendorNumber))
-    .limit(1);
+  const business = await prisma.business.findUnique({
+    where: { vendor_number: vendorNumber },
+    select: {
+      business_id: true,
+      vendor_number: true,
+      business_name: true,
+      owner_name: true,
+      market: { select: { name: true } },
+      business_type: { select: { fee_amount: true } },
+    },
+  });
 
   if (!business) return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [paid] = await db
-    .select({ amount: payments.amount, paid_at: payments.paid_at })
-    .from(payments)
-    .where(
-      and(eq(payments.business_id, business.business_id), eq(payments.status, "Completed"), gte(payments.paid_at, today))
-    )
-    .limit(1);
+  const paid = await prisma.payment.findFirst({
+    where: { business_id: business.business_id, status: "Completed", paid_at: { gte: today } },
+    select: { amount: true, paid_at: true },
+  });
 
   return NextResponse.json({
     vendor_number: business.vendor_number,
     business_name: business.business_name,
     owner_name: business.owner_name,
-    market: business.market_name,
-    fee: business.fee_amount != null ? Number(business.fee_amount) : null,
+    market: business.market?.name,
+    fee: business.business_type ? Number(business.business_type.fee_amount) : null,
     paid_today: Boolean(paid),
     paid_amount: paid ? Number(paid.amount) : null,
     code: makePayCode(business.vendor_number),

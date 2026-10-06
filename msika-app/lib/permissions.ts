@@ -1,8 +1,4 @@
-import { db } from "./db";
-import { collectors, supervisors } from "@/src/db/schema";
-import { eq, sql } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
-import type { PgColumn } from "drizzle-orm/pg-core";
+import { prisma } from "./prisma";
 import type { SessionUser } from "./session";
 
 /**
@@ -43,11 +39,10 @@ export async function getScope(user: SessionUser): Promise<Scope> {
   }
 
   if (user.role === "Collector") {
-    const [collector] = await db
-      .select({ collector_id: collectors.collector_id, sub_office_id: collectors.sub_office_id })
-      .from(collectors)
-      .where(eq(collectors.username, user.username))
-      .limit(1);
+    const collector = await prisma.collector.findUnique({
+      where: { username: user.username },
+      select: { collector_id: true, sub_office_id: true },
+    });
     return {
       role: "Collector",
       collectorId: collector?.collector_id ?? null,
@@ -57,11 +52,10 @@ export async function getScope(user: SessionUser): Promise<Scope> {
   }
 
   if (user.role === "Supervisor") {
-    const [supervisor] = await db
-      .select({ supervisor_id: supervisors.supervisor_id, sub_office_id: supervisors.sub_office_id })
-      .from(supervisors)
-      .where(eq(supervisors.username, user.username))
-      .limit(1);
+    const supervisor = await prisma.supervisor.findUnique({
+      where: { username: user.username },
+      select: { supervisor_id: true, sub_office_id: true },
+    });
     return {
       role: "Supervisor",
       collectorId: null,
@@ -74,49 +68,48 @@ export async function getScope(user: SessionUser): Promise<Scope> {
 }
 
 /**
- * Business (vendor) filter for a scope, as a composable SQL fragment.
+ * Business (vendor) filter for a scope.
  * Collectors see vendors they registered; supervisors see vendors in their
- * sub-office markets; administrators see all (undefined = no filter).
- *
- * Written as self-contained subqueries so it is safe to embed in any
- * query regardless of the aliases the caller uses.
+ * sub-office markets; administrators see all.
  */
-export function businessScopeSql(
-  scope: Scope,
-  cols: { registeredBy: PgColumn; marketId: PgColumn }
-): SQL | undefined {
-  if (scope.role === "Administrator") return undefined;
+export function businessScopeFilter(scope: Scope): Record<string, unknown> {
+  if (scope.role === "Administrator") return {};
   if (scope.role === "Collector") {
-    if (!scope.collectorId) return sql`false`;
-    return eq(cols.registeredBy, scope.collectorId);
+    if (!scope.collectorId) return { business_id: -1 };
+    return { registered_by_collector_id: scope.collectorId };
   }
   if (scope.role === "Supervisor") {
-    if (!scope.subOfficeId) return sql`false`;
-    return sql`${cols.marketId} in (select market_id from "Market" where sub_office_id = ${scope.subOfficeId})`;
+    if (!scope.subOfficeId) return { business_id: -1 };
+    return { market: { sub_office_id: scope.subOfficeId } };
   }
-  return sql`false`;
+  return { business_id: -1 };
 }
 
 /**
- * Payment filter for a scope, as a composable SQL fragment.
- * Collectors see payments they recorded themselves plus wallet self-payments
- * on vendors they registered; supervisors see payments belonging to vendors
- * in their sub-office; administrators see all (undefined = no filter).
+ * Payment filter for a scope.
+ * Collectors see payments they recorded themselves; supervisors see payments
+ * belonging to vendors in their sub-office; administrators see all.
  */
-export function paymentScopeSql(
-  scope: Scope,
-  cols: { collectorId: PgColumn; businessId: PgColumn }
-): SQL | undefined {
-  if (scope.role === "Administrator") return undefined;
+export function paymentScopeFilter(scope: Scope): Record<string, unknown> {
+  if (scope.role === "Administrator") return {};
   if (scope.role === "Collector") {
     // A collector's payments: the ones they recorded, plus wallet payments on
     // vendors they registered (self-pay by their own vendors).
-    if (!scope.collectorId) return sql`false`;
-    return sql`(${cols.collectorId} = ${scope.collectorId} or ${cols.businessId} in (select business_id from "Business" where registered_by_collector_id = ${scope.collectorId}))`;
+    if (scope.collectorId) {
+      return {
+        OR: [
+          { collector_id: scope.collectorId },
+          { business: { registered_by_collector_id: scope.collectorId } },
+        ],
+      };
+    }
+    return { payment_id: -1 };
   }
   if (scope.role === "Supervisor") {
-    if (!scope.subOfficeId) return sql`false`;
-    return sql`${cols.businessId} in (select b.business_id from "Business" b join "Market" m on m.market_id = b.market_id where m.sub_office_id = ${scope.subOfficeId})`;
+    if (scope.subOfficeId) {
+      return { business: { market: { sub_office_id: scope.subOfficeId } } };
+    }
+    return { payment_id: -1 };
   }
-  return sql`false`;
+  return { payment_id: -1 };
 }

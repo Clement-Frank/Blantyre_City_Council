@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, desc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { apiClients, apiKeys } from "@/src/db/schema";
+import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { generateApiKey, parsePermissions } from "@/lib/api-auth";
 
@@ -19,35 +17,36 @@ export async function GET() {
   const { error } = await requireAdmin();
   if (error) return error;
 
-  const clientRows = await db.select().from(apiClients).orderBy(asc(apiClients.created_at));
-  const keyRows = await db
-    .select()
-    .from(apiKeys)
-    .orderBy(desc(apiKeys.created_at));
+  const clients = await prisma.apiClient.findMany({
+    orderBy: { created_at: "asc" },
+    include: {
+      api_keys: {
+        orderBy: { created_at: "desc" },
+        select: {
+          api_key_id: true,
+          name: true,
+          permissions: true,
+          rate_limit: true,
+          last_used_at: true,
+          expires_at: true,
+          is_active: true,
+          created_at: true,
+        },
+      },
+    },
+  });
 
   return NextResponse.json({
-    clients: clientRows.map((c) => {
-      const keys = keyRows.filter((k) => k.api_client_id === c.api_client_id);
-      return {
-        api_client_id: c.api_client_id,
-        name: c.name,
-        contact_email: c.contact_email,
-        contact_phone: c.contact_phone,
-        is_active: c.is_active,
-        created_at: c.created_at,
-        keys: keys.map((k) => ({
-          api_key_id: k.api_key_id,
-          name: k.name,
-          permissions: parsePermissions(k.permissions),
-          rate_limit: k.rate_limit,
-          last_used_at: k.last_used_at,
-          expires_at: k.expires_at,
-          is_active: k.is_active,
-          created_at: k.created_at,
-        })),
-        total_calls: keys.filter((k) => k.last_used_at).length,
-      };
-    }),
+    clients: clients.map((c) => ({
+      api_client_id: c.api_client_id,
+      name: c.name,
+      contact_email: c.contact_email,
+      contact_phone: c.contact_phone,
+      is_active: c.is_active,
+      created_at: c.created_at,
+      keys: c.api_keys.map((k) => ({ ...k, permissions: parsePermissions(k.permissions) })),
+      total_calls: c.api_keys.filter((k) => k.last_used_at).length,
+    })),
   });
 }
 
@@ -65,24 +64,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "name and contact_email are required" }, { status: 400 });
     }
 
-    const [client] = await db
-      .insert(apiClients)
-      .values({ name, contact_email, contact_phone: body.contact_phone?.trim() || null })
-      .returning({
-        api_client_id: apiClients.api_client_id,
-        name: apiClients.name,
-      });
+    const client = await prisma.apiClient.create({
+      data: { name, contact_email, contact_phone: body.contact_phone?.trim() || null },
+    });
 
     const { plain, hash } = generateApiKey();
-    const [key] = await db
-      .insert(apiKeys)
-      .values({
+    const key = await prisma.apiKey.create({
+      data: {
         api_client_id: client.api_client_id,
         key_hash: hash,
         name: `${name} — default key`,
         permissions: JSON.stringify(["payments:write", "vendors:read"]),
-      })
-      .returning({ api_key_id: apiKeys.api_key_id });
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -110,21 +104,19 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (body.api_key_id) {
-      const [key] = await db
-        .update(apiKeys)
-        .set({ is_active: body.is_active })
-        .where(eq(apiKeys.api_key_id, Number(body.api_key_id)))
-        .returning({ api_key_id: apiKeys.api_key_id, is_active: apiKeys.is_active });
-      return NextResponse.json({ success: true, key });
+      const key = await prisma.apiKey.update({
+        where: { api_key_id: Number(body.api_key_id) },
+        data: { is_active: body.is_active },
+      });
+      return NextResponse.json({ success: true, key: { api_key_id: key.api_key_id, is_active: key.is_active } });
     }
 
     if (body.api_client_id) {
-      const [client] = await db
-        .update(apiClients)
-        .set({ is_active: body.is_active })
-        .where(eq(apiClients.api_client_id, Number(body.api_client_id)))
-        .returning({ api_client_id: apiClients.api_client_id, is_active: apiClients.is_active });
-      return NextResponse.json({ success: true, client });
+      const client = await prisma.apiClient.update({
+        where: { api_client_id: Number(body.api_client_id) },
+        data: { is_active: body.is_active },
+      });
+      return NextResponse.json({ success: true, client: { api_client_id: client.api_client_id, is_active: client.is_active } });
     }
 
     return NextResponse.json({ error: "api_key_id or api_client_id is required" }, { status: 400 });

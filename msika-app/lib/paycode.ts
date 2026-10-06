@@ -1,13 +1,5 @@
 import { createHash } from "crypto";
-import { and, eq, gte, sql } from "drizzle-orm";
-import { db } from "./db";
-import {
-  businesses,
-  businessTypes,
-  markets,
-  payments,
-  revenueSummaries,
-} from "@/src/db/schema";
+import { prisma } from "./prisma";
 import { notifyVendor, paymentReceiptContent } from "./notify";
 
 // Pay-code = stable, non-guessable token bound to a vendor. Printed as a QR
@@ -57,21 +49,10 @@ export async function payWithCode(input: PayWithCodeInput): Promise<{
     return { ok: false, status: 403, payload: { error: "Invalid pay code for this vendor" } };
   }
 
-  const [business] = await db
-    .select({
-      business_id: businesses.business_id,
-      vendor_number: businesses.vendor_number,
-      business_name: businesses.business_name,
-      owner_name: businesses.owner_name,
-      phone_number: businesses.phone_number,
-      market_id: businesses.market_id,
-      council_id: businesses.council_id,
-      fee_amount: businessTypes.fee_amount,
-    })
-    .from(businesses)
-    .leftJoin(businessTypes, eq(businessTypes.business_type_id, businesses.business_type_id))
-    .where(eq(businesses.vendor_number, vendor_number.toUpperCase()))
-    .limit(1);
+  const business = await prisma.business.findUnique({
+    where: { vendor_number: vendor_number.toUpperCase() },
+    include: { business_type: true },
+  });
   if (!business) {
     return { ok: false, status: 404, payload: { error: "Vendor not found" } };
   }
@@ -79,17 +60,9 @@ export async function payWithCode(input: PayWithCodeInput): Promise<{
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [already] = await db
-    .select({ payment_id: payments.payment_id, amount: payments.amount, paid_at: payments.paid_at })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.business_id, business.business_id),
-        eq(payments.status, "Completed"),
-        gte(payments.paid_at, today)
-      )
-    )
-    .limit(1);
+  const already = await prisma.payment.findFirst({
+    where: { business_id: business.business_id, status: "Completed", paid_at: { gte: today } },
+  });
   if (already) {
     return {
       ok: true,
@@ -115,69 +88,51 @@ export async function payWithCode(input: PayWithCodeInput): Promise<{
 
   // Idempotency on external refs
   if (transaction_ref) {
-    const [dup] = await db
-      .select({ payment_id: payments.payment_id })
-      .from(payments)
-      .where(eq(payments.transaction_ref, transaction_ref))
-      .limit(1);
+    const dup = await prisma.payment.findFirst({ where: { transaction_ref } });
     if (dup) {
       return { ok: true, status: 200, payload: { already_paid: true, duplicate: true, payment_id: dup.payment_id } };
     }
   }
 
-  const [payment] = await db
-    .insert(payments)
-    .values({
+  const payment = await prisma.payment.create({
+    data: {
       business_id: business.business_id,
-      amount: String(amountNum),
+      amount: amountNum,
       fee_type: amountNum >= 2000 ? "Kupikulisa Bulk Fee" : amountNum >= 500 ? "Restaurant/Butchery Fee" : "Standard Daily Fee",
       payment_channel,
       transaction_ref: ref,
       status: "Completed",
       paid_at: new Date(),
       sms_sent: true,
-    })
-    .returning({ payment_id: payments.payment_id });
+    },
+  });
 
   // Revenue rollup
   const day = new Date();
   day.setHours(0, 0, 0, 0);
-  const summaryDay = day.toISOString().slice(0, 10);
-  const [marketRow] = await db
-    .select({ sub_office_id: markets.sub_office_id })
-    .from(markets)
-    .where(eq(markets.market_id, business.market_id))
-    .limit(1);
-  await db
-    .insert(revenueSummaries)
-    .values({
+  await prisma.revenueSummary.upsert({
+    where: { market_id_summary_date: { market_id: business.market_id, summary_date: day } },
+    update: {
+      total_amount: { increment: amountNum },
+      total_transactions: { increment: 1 },
+      successful_count: { increment: 1 },
+    },
+    create: {
       council_id: business.council_id,
-      sub_office_id: marketRow?.sub_office_id ?? 1,
+      sub_office_id:
+        (await prisma.market.findUnique({ where: { market_id: business.market_id } }))?.sub_office_id ?? 1,
       market_id: business.market_id,
-      summary_date: summaryDay,
-      total_amount: String(amountNum),
+      summary_date: day,
+      total_amount: amountNum,
       total_transactions: 1,
       successful_count: 1,
-    })
-    .onConflictDoUpdate({
-      target: [revenueSummaries.market_id, revenueSummaries.summary_date],
-      set: {
-        total_amount: sql`${revenueSummaries.total_amount} + ${String(amountNum)}`,
-        total_transactions: sql`${revenueSummaries.total_transactions} + 1`,
-        successful_count: sql`${revenueSummaries.successful_count} + 1`,
-      },
-    });
+    },
+  });
 
   // Automatic receipt — no staff action required
   await notifyVendor({
     kind: "receipt",
-    business: {
-      business_id: business.business_id,
-      vendor_number: business.vendor_number,
-      owner_name: business.owner_name,
-      phone_number: business.phone_number,
-      business_name: business.business_name,
-    },
+    business,
     content: paymentReceiptContent(business.vendor_number, amountNum, payment_channel),
   }).catch(() => undefined);
 

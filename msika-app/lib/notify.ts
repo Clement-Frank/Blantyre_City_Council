@@ -1,6 +1,4 @@
-import { db } from "./db";
-import { notifications } from "@/src/db/schema";
-import { eq } from "drizzle-orm";
+import { prisma } from "./prisma";
 import { sendSMS } from "./sms";
 
 export type NotificationKind = "receipt" | "reminder" | "registration" | "system";
@@ -25,17 +23,16 @@ interface NotifyVendorInput {
 export async function notifyVendor({ kind, business, content }: NotifyVendorInput) {
   const hasTwilio = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
 
-  const [row] = await db
-    .insert(notifications)
-    .values({
+  const row = await prisma.notification.create({
+    data: {
       recipient_type: "Business",
       recipient_id: business.business_id,
       type: "SMS",
       channel: kind === "receipt" ? "Payment" : kind === "reminder" ? "Reminder" : "Registration",
       status: "Pending",
       content,
-    })
-    .returning({ notification_id: notifications.notification_id });
+    },
+  });
 
   let delivered = false;
   let provider: "twilio" | "logged" = "logged";
@@ -46,13 +43,13 @@ export async function notifyVendor({ kind, business, content }: NotifyVendorInpu
     provider = result.provider;
   }
 
-  await db
-    .update(notifications)
-    .set({
+  await prisma.notification.update({
+    where: { notification_id: row.notification_id },
+    data: {
       status: delivered ? "Sent" : hasTwilio ? "Failed" : "Logged",
       sent_at: delivered ? new Date() : null,
-    })
-    .where(eq(notifications.notification_id, row.notification_id));
+    },
+  });
 
   return { delivered, provider, notification_id: row.notification_id };
 }

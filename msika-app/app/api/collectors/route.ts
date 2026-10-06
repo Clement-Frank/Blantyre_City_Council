@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { businesses, collectors, payments, subOffices } from "@/src/db/schema";
+import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
@@ -14,34 +12,26 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden — administrators only" }, { status: 403 });
   }
 
-  const [collectorRows, businessRows, paymentRows, subOfficeRows] = await Promise.all([
-    db.select().from(collectors).orderBy(asc(collectors.collector_id)),
-    db.select({ registered_by_collector_id: businesses.registered_by_collector_id }).from(businesses),
-    db
-      .select({
-        collector_id: payments.collector_id,
-        payment_id: payments.payment_id,
-        amount: payments.amount,
-      })
-      .from(payments)
-      .where(eq(payments.status, "Completed")),
-    db.select({ sub_office_id: subOffices.sub_office_id, name: subOffices.name }).from(subOffices),
-  ]);
-
-  const data = collectorRows.map((c) => {
-    const cPayments = paymentRows.filter((p) => p.collector_id === c.collector_id);
-    return {
-      collector_id: c.collector_id,
-      full_name: c.full_name,
-      username: c.username,
-      mobile_number: c.mobile_number,
-      sub_office: subOfficeRows.find((s) => s.sub_office_id === c.sub_office_id)?.name,
-      vendors_registered: businessRows.filter((b) => b.registered_by_collector_id === c.collector_id).length,
-      payments_recorded: cPayments.length,
-      cash_collected: cPayments.reduce((sum, p) => sum + Number(p.amount), 0),
-      is_active: c.is_active,
-    };
+  const collectors = await prisma.collector.findMany({
+    include: {
+      sub_office: { select: { name: true } },
+      businesses: { select: { business_id: true } },
+      payments: { where: { status: "Completed" }, select: { payment_id: true, amount: true } },
+    },
+    orderBy: { collector_id: "asc" },
   });
+
+  const data = collectors.map((c) => ({
+    collector_id: c.collector_id,
+    full_name: c.full_name,
+    username: c.username,
+    mobile_number: c.mobile_number,
+    sub_office: c.sub_office?.name,
+    vendors_registered: c.businesses.length,
+    payments_recorded: c.payments.length,
+    cash_collected: c.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+    is_active: c.is_active,
+  }));
 
   return NextResponse.json({ collectors: data });
 }
@@ -66,28 +56,23 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedUsername = usernameStr.trim().toLowerCase();
-    const [existing] = await db
-      .select({ collector_id: collectors.collector_id })
-      .from(collectors)
-      .where(eq(collectors.username, normalizedUsername))
-      .limit(1);
+    const existing = await prisma.collector.findUnique({ where: { username: normalizedUsername } });
     if (existing) {
       return NextResponse.json({ error: "A collector with this username already exists" }, { status: 409 });
     }
 
     const hash = await bcrypt.hash(passwordStr, 10);
 
-    const [collector] = await db
-      .insert(collectors)
-      .values({
+    const collector = await prisma.collector.create({
+      data: {
         council_id: 1,
         sub_office_id: sub_office_id ? Number(sub_office_id) : null,
         full_name: fullName,
         mobile_number: mobile_number != null ? String(mobile_number) : "",
         username: normalizedUsername,
         password_hash: hash,
-      })
-      .returning({ collector_id: collectors.collector_id, username: collectors.username });
+      },
+    });
 
     await logAudit({
       actorType: "User",
