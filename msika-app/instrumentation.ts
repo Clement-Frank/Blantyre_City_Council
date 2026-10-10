@@ -1,6 +1,5 @@
-// Next.js instrumentation — runs once when the server process starts.
-// Starts the automatic notification scheduler so reminders go out with
-// zero manual action from council staff.
+// Next.js instrumentation — runs once on non-Vercel persistent servers.
+// Vercel uses its configured Cron job instead of an in-process timer.
 //
 // Behaviour:
 //  - Every 30 minutes, vendors who have NOT paid today's fee automatically
@@ -13,6 +12,7 @@ const REMINDER_INTERVAL_MS = 30 * 60 * 1000;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.VERCEL) return;
 
   console.log("[scheduler] automatic reminder engine registered (every 30 min)");
 

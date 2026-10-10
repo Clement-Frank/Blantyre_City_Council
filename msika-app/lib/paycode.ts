@@ -7,7 +7,10 @@ import { notifyVendor, paymentReceiptContent } from "./notify";
 // that exact vendor. Signed with JWT_SECRET so it cannot be forged.
 
 export function makePayCode(vendorNumber: string): string {
-  const secret = process.env.JWT_SECRET || "msika-dev-secret";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not set.");
+  }
   return createHash("sha256").update(`paycode:${vendorNumber}:${secret}`).digest("hex").slice(0, 32);
 }
 
