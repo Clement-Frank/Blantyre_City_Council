@@ -69,15 +69,13 @@ export async function getScope(user: SessionUser): Promise<Scope> {
 
 /**
  * Business (vendor) filter for a scope.
- * Collectors see vendors they registered; supervisors see vendors in their
- * sub-office markets; administrators see all.
+ * Spec §2.3/§3.3: collectors can VIEW all vendors (they need every stall for
+ * search and collection); supervisors see vendors in their sub-office markets;
+ * administrators see all. Payment DETAILS stay scoped via paymentScopeFilter.
  */
 export function businessScopeFilter(scope: Scope): Record<string, unknown> {
   if (scope.role === "Administrator") return {};
-  if (scope.role === "Collector") {
-    if (!scope.collectorId) return { business_id: -1 };
-    return { registered_by_collector_id: scope.collectorId };
-  }
+  if (scope.role === "Collector") return {};
   if (scope.role === "Supervisor") {
     if (!scope.subOfficeId) return { business_id: -1 };
     return { market: { sub_office_id: scope.subOfficeId } };

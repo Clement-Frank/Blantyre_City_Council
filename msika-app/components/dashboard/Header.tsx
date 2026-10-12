@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Calendar } from "lucide-react";
+import { Search, Bell, Calendar, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Header() {
@@ -15,9 +15,24 @@ export default function Header() {
       .slice(0, 2);
   };
 
+  const openMobileNav = () => {
+    // Opens the full navigation drawer rendered by Sidebar
+    window.dispatchEvent(new Event("msika:open-nav"));
+  };
+
   return (
-    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-[#E5E5E0] px-6 py-4">
-      <div className="flex items-center justify-between">
+    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-[#E5E5E0] px-4 sm:px-6 py-3 sm:py-4">
+      <div className="flex items-center gap-3">
+        {/* Mobile menu trigger — opens the full navigation drawer from Sidebar */}
+        <button
+          onClick={openMobileNav}
+          data-header-nav-trigger="true"
+          aria-label="Open navigation"
+          className="lg:hidden shrink-0 p-2.5 rounded-xl bg-[#F5F5F0] border border-[#E5E5E0] text-[#0E0E0B] active:bg-[#E5E5E0]"
+        >
+          <Menu size={20} />
+        </button>
+
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
@@ -27,7 +42,7 @@ export default function Header() {
           />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-[#F5F5F0] rounded-xl border border-[#E5E5E0]">
             <Calendar size={16} className="text-[#0E0E0B]" />
             <span className="text-sm text-[#0E0E0B] font-medium">
@@ -44,7 +59,7 @@ export default function Header() {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#AFE607] rounded-full border-2 border-white" />
           </button>
 
-          <div className="flex items-center gap-3 pl-4 border-l border-[#E5E5E0]">
+          <div className="flex items-center gap-3 sm:pl-4 sm:border-l border-[#E5E5E0]">
             <div className="w-9 h-9 rounded-full bg-[#0E0E0B] flex items-center justify-center text-[#AFE607] text-sm font-bold">
               {user ? getInitials(user.fullName) : "??"}
             </div>

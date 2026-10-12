@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { getScope, businessScopeFilter, paymentScopeFilter } from "@/lib/permissions";
+import { getScope, businessScopeFilter } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { resolveVendorLocation, checkGeofence } from "@/lib/geofence";
 
@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
       section: { select: { section_name: true } },
       business_type: { select: { name: true, fee_amount: true } },
       payments: {
-        where: { status: "Completed", paid_at: { gte: today }, ...(paymentScopeFilter(scope) as object) },
+        // Rule 3: payment STATUS derives from all confirmed payments — it must
+        // not be filtered by the viewer's own-recordings scope. Sensitive
+        // details are still scoped in the vendor profile / payment list.
+        where: { status: "Completed", paid_at: { gte: today } },
         select: { payment_id: true, amount: true, paid_at: true, payment_channel: true },
         orderBy: { paid_at: "desc" },
         take: 1,
@@ -73,9 +76,17 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/vendors — register a vendor (with geo-fence validation)
+// Spec §2.3: vendor registration is Administrator/Supervisor only — Collectors
+// cannot register vendors by default (enforced server-side, Rule 6).
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role === "Collector") {
+    return NextResponse.json(
+      { error: "Collectors cannot register vendors — ask your supervisor" },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await request.json();

@@ -84,7 +84,27 @@ export async function POST(request: NextRequest) {
 
     const amountNum = Number(amount);
     const channel = (payment_channel as "Cash" | "AirtelMoney" | "TNMMpamba" | "USSD" | "Bank") || "Cash";
-    const feeType = fee_type != null ? String(fee_type) : amountNum >= 2000 ? "Kupikulisa Bulk Fee" : amountNum >= 500 ? "Restaurant/Butchery Fee" : "Standard Daily Fee";
+
+    // Spec §4.3 + Rule 4: a Collector records CASH only — wallet initiation is a
+    // vendor/admin flow — and a payment is always attributed to the
+    // authenticated collector's own ID. Everybody uses the vendor's applicable
+    // fee; no arbitrary amounts are accepted silently.
+    if (user.role === "Collector" && channel !== "Cash") {
+      return NextResponse.json(
+        { error: "Collectors record cash payments only — wallet payments are initiated by the vendor" },
+        { status: 403 }
+      );
+    }
+    const feeAmount = business.business_type ? Number(business.business_type.fee_amount) : null;
+    if (feeAmount != null && amountNum !== feeAmount) {
+      return NextResponse.json(
+        { error: `Amount must be the applicable fee (MWK ${feeAmount})` },
+        { status: 400 }
+      );
+    }
+    const feeType = business.business_type
+      ? `${business.business_type.name} Fee`
+      : amountNum >= 2000 ? "Kupikulisa Bulk Fee" : amountNum >= 500 ? "Restaurant/Butchery Fee" : "Standard Daily Fee";
 
     let collectorId: number | null = null;
     if (user.role === "Collector") {
