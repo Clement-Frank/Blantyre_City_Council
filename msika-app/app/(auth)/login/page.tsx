@@ -121,20 +121,16 @@ export default function LoginPage() {
         <div className="absolute bottom-[-100px] left-[5%] w-[200px] h-[200px] rounded-full bg-[#AFE607]/5 blur-3xl" />
 
         <div className="w-full max-w-[1000px] min-h-[600px] bg-white rounded-[32px] flex overflow-hidden shadow-2xl relative z-10">
-          {/* LEFT SIDE - Branding */}
+          {/* LEFT SIDE - Branding: one big logo + council name */}
           <div className="w-[45%] bg-[#0E0E0B] relative flex flex-col justify-between p-8 rounded-l-[32px]">
-            <div className="flex flex-col items-center text-center">
-              <CouncilLogo className="w-16 h-auto" />
-              <div className="mt-2">
-                <p className="text-[10px] font-bold text-white tracking-[0.2em] leading-tight">BLANTYRE</p>
-                <p className="text-[10px] font-bold text-white tracking-[0.2em] leading-tight">CITY COUNCIL</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <CouncilLogo className="w-52 h-auto drop-shadow-[0_16px_40px_rgba(0,0,0,0.45)]" />
+              <div className="mt-4">
+                <p className="text-[11px] font-bold text-white tracking-[0.25em] leading-tight">BLANTYRE</p>
+                <p className="text-[11px] font-bold text-white tracking-[0.25em] leading-tight">CITY COUNCIL</p>
               </div>
             </div>
-            
-            <div className="flex-1 flex items-center justify-center">
-              <CouncilLogo className="w-52 h-auto drop-shadow-[0_16px_40px_rgba(0,0,0,0.45)]" />
-            </div>
-            
+
             <div className="text-[9px] text-white/30">
               <p>2024 Blantyre City Council</p>
               <p>Powered by The Malawi Government</p>

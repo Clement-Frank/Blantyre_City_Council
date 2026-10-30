@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import MarketFocusCard from "@/components/dashboard/MarketFocusCard";
-import RevenueChart from "@/components/dashboard/RevenueChart";
 import RecentPayments from "@/components/dashboard/RecentPayments";
 
 interface DashStats {
@@ -291,13 +290,8 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {/* ===== Revenue + market focus ===== */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <RevenueChart />
-        </div>
-        <MarketFocusCard />
-      </div>
+      {/* ===== Market focus (market growth now lives in the Markets module) ===== */}
+      <MarketFocusCard />
 
       {/* ===== Live feed ===== */}
       <div>

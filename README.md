@@ -21,8 +21,9 @@ replacing paper-based ticket collection that leaked revenue.
 ## 1. What the system does
 
 Msika digitizes daily market fee collection for city councils. Field collectors
-see a live, geo-fenced map of every stall at Limbe Market — green dot = paid
-today, red dot = unpaid — and record cash payments in one tap. Vendors can pay
+see a live map of every stall at Limbe Market placed at each vendor's exact
+recorded GPS coordinates — green dot = paid today, red dot = unpaid — and
+record cash payments in one tap. Vendors can pay
 by scanning their stall's QR code through Airtel Money or TNM Mpamba
 (webhook-driven). Every payment lands in PostgreSQL with a transaction
 reference, updates the vendor's status instantly, rolls up into daily revenue
@@ -31,8 +32,8 @@ summaries, queues an SMS receipt, and writes an audit-log entry.
 | Module | What it does |
 |---|---|
 | **Dashboard** | Live KPIs: total/active vendors, paid vs unpaid today, cash collected, compliance %, revenue trend |
-| **Vendors** | Register vendors, search by name/phone/stall, vendor profile + payment history |
-| **Live Map** | Geo-fenced Leaflet map of Limbe Market (real OpenStreetMap boundary); green = paid today, red = unpaid |
+| **Vendors** | Register vendors with their EXACT recorded GPS coordinates (geo-reference), search by name/phone/stall, vendor profile + payment history |
+| **Live Map** | Leaflet map of Limbe Market within its real OpenStreetMap boundary; each dot sits at the vendor's exact recorded coordinates; green = paid today, red = unpaid |
 | **Payments** | Record cash (collector) or initiate mobile-money payments; verify by vendor number |
 | **Reports / Pulse** | Daily/weekly revenue breakdowns by channel (Cash, AirtelMoney, TNMMpamba), section, fee type |
 | **Markets** | Markets & sections with vendor counts and market-growth insight |

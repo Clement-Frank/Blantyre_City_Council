@@ -94,11 +94,11 @@ Core use cases:
   confirms amount (default = vendor's fee) → copy printed citation → payment is
   stored `status=COMPLETED`, collector attributed; vendor turns green; SMS receipt queued.
 
-- **UC-2 Enrol a vendor (Collector/Supervisor).**
+-  **UC-2 Enrol a vendor (Collector/Supervisor).**
   Open Vendor module → Fill in stall details, fee amount, section → submit →
-  system allocates unique `vendor_number` (e.g. `V-01002`), geo-fences the
-  coordinates (or auto-places them inside the boundary), SMS queues a
-  welcome/receipt.
+  system allocates unique `vendor_number` (e.g. `V-01002`), stores the EXACT
+  recorded GPS coordinates (geo-reference; a boundary check is reported for
+  information), SMS queues a welcome/receipt.
 
 - **UC-3 Vendor pays via mobile money / QR (Vendor walk-up).**
   Vendor scans their stall's QR code (rendered per vendor) → public
@@ -249,7 +249,7 @@ Domain libraries under `lib/`:
 
 | lib | Responsibility |
 |---|---|
-| `geofence.ts` | Limbe Market polygon + `pointInPolygon` (ray-casting), snap-to-boundary for vendor GPS drift, distance calc |
+| `geofence.ts` | Limbe Market polygon + `pointInPolygon` (ray-casting), distance calc, geo-reference check: registration keeps the EXACT recorded coordinates and reports inside/outside + distance |
 | `paycode.ts` | Stable per-vendor payment reference generator & verifier (HMAC-able, signed with `JWT_SECRET`), used for the QR walk-in payment page |
 | `wallet-webhook.ts` | Normalizes Airtel/TNM transactions: charset/status mapping, idempotency on ref, credited/failed transitions for pending records |
 | `permissions.ts` | Role scope decision object per role; `businessScopeFilter`/`paymentScopeFilter` return the Prisma record filter for staff (so wallet-initiators only see their own flows) |

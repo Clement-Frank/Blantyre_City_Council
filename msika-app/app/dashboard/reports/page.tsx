@@ -14,21 +14,21 @@ const reportCards = [
     description: "Rolled-up monthly totals with trend comparison against previous month.",
     icon: TrendingUp,
     href: "/dashboard/reports/monthly",
-    color: "bg-[#5a9e8f]",
+    color: "bg-[#3d5a45]",
   },
   {
     title: "Vendor Compliance",
     description: "Lists vendors by payment frequency to identify chronic non-payers.",
     icon: ShieldCheck,
     href: "/dashboard/reports/compliance",
-    color: "bg-[#7bc4b5]",
+    color: "bg-[#3d5a45]",
   },
   {
     title: "Collector Performance",
     description: "Number of vendors registered and payments verified per collector.",
     icon: Users,
     href: "/dashboard/reports/collectors",
-    color: "bg-[#2d4a3e]",
+    color: "bg-[#3d5a45]",
   },
   {
     title: "Revenue Trends",
@@ -56,13 +56,13 @@ export default function ReportsPage() {
             <Link
               key={report.href}
               href={report.href}
-              className="group bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-[#5a9e8f]/30 transition-all"
+              className="group bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-[#3d5a45]/30 transition-all"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-12 h-12 ${report.color} rounded-xl flex items-center justify-center text-white shadow-lg`}>
                   <Icon size={22} />
                 </div>
-                <span className="text-xs font-medium text-gray-400 group-hover:text-[#5a9e8f] transition-colors">
+                <span className="text-xs font-medium text-gray-400 group-hover:text-[#3d5a45] transition-colors">
                   View →
                 </span>
               </div>

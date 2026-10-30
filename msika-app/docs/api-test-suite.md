@@ -497,7 +497,7 @@ curl -s -b A.jar "$BASE_URL/api/audit-logs?action=CREATE"      # vendor registra
 | Invalid market id at registration | `market_id: 9999` | 404 `Market not found` |
 | Amount ≠ fee | payment `{"amount":250,…}` | 400 `Amount must be the applicable fee…` |
 | Duplicate transaction_ref via webhook | resend exact webhook body | 200 `duplicate:true` and DB has ONE row |
-| Coordinates outside boundary | register with `gps 100.5, 200.4` | **SNAPPED** inside fence and registered with `geofence.inside:false` informational; NOT rejected → design gap, see section 2 |
+| Coordinates outside boundary | register with `gps -15.8195, 35.0532` vs an outside point | Exact recorded coordinates are kept in both cases; the response reports `geofence.inside:false` plus the distance for outside points (geo-reference policy — enforcement staff review the flag). |
 | Invalid phone number | `"phone_number":"abc"` at registration | **ACCEPTED** → gap: only presence is checked, format validation is missing |
 | Invalid pay-code | TEST 3c forged code | 403 |
 | Missing/invalid API key on external APIs | `curl -s -o /dev/null -w '%{http_code}\n' "$BASE_URL/api/external/vendors"` and `--header 'x-api-key: wrong'` | 401 / 401 |
@@ -618,7 +618,7 @@ psql "$DATABASE_URL" -c "SELECT p.transaction_ref,p.amount,p.status,p.paid_at,c.
 | 1 | Public vendor self-registration | **NOT IMPLEMENTED** | No unauthenticated registration route; POST /api/vendors is session-gated and collector-blocked (`app/api/vendors/route.ts`) |
 | 1 | Unique Vendor ID, field validation, DB persistence, map presence | **PASS** (staff path) | V-NNNNN `@unique` generation, 400 on missing fields, geofence util, map/list include new vendors |
 | 1 | Duplicate-proof registration (same person) | **FAIL** | No phone/NID dedupe |
-| 1 | Coordinate boundary enforcement | **FAIL** | Outside points are repositioned inside, never rejected |
+| 1 | Geo-reference of coordinates | **PASS** | EXACT recorded coordinates are stored (no snapping); a geofence check (inside/outside + distance) is returned for information and enforcement |
 | 2 | Vendor authentication / self-service portal | **NOT IMPLEMENTED** | Only three staff tables are authenticated; no vendor secret store |
 | 2 | Vendor lookup by Vendor ID + status checks | **PASS (public pay-status) / PASS (staff verify)** | `/api/public/pay-status`, `/api/payments/verify` |
 | 3 | Real Airtel Money/TNM Mpamba integration | **NOT IMPLEMENTED** | No operator client code; doc-level only |

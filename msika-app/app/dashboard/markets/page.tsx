@@ -5,7 +5,7 @@
 // vendor counts, today's revenue, and the submarkets under each market.
 
 import { useEffect, useState } from "react";
-import { Search, Plus, MapPin, Store, Users, Layers } from "lucide-react";
+import { Search, Plus, MapPin, Store, Users, Layers, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,8 +21,31 @@ interface MarketCard {
   submarkets: string[];
 }
 
+interface GrowthStats {
+  week: number;
+  month: number;
+  year: number;
+  total: number;
+}
+
+function GrowthBlock({ label, caption }: { label: string; caption: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="w-8 h-8 rounded-lg bg-[#e8f0ec] flex items-center justify-center">
+          <TrendingUp size={15} className="text-[#3d5a45]" />
+        </span>
+        <p className="text-xs font-semibold text-gray-500 ">{label}</p>
+      </div>
+      <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{caption}</p>
+      <p className="text-[10px] text-gray-400 mt-0.5">new vendors</p>
+    </div>
+  );
+}
+
 export default function MarketsPage() {
   const [markets, setMarkets] = useState<MarketCard[]>([]);
+  const [growth, setGrowth] = useState<GrowthStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const { user } = useAuth();
@@ -36,6 +59,14 @@ export default function MarketsPage() {
     ])
       .then(([dash, intel]) => {
         if (!alive) return;
+        if (dash?.stats) {
+          setGrowth({
+            week: dash.stats.new_vendors_week ?? 0,
+            month: dash.stats.new_vendors_month ?? 0,
+            year: dash.stats.new_vendors_year ?? 0,
+            total: dash.stats.total_vendors ?? 0,
+          });
+        }
         const cards: MarketCard[] = [];
         if (intel?.market) {
           cards.push({
@@ -78,7 +109,7 @@ export default function MarketsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search markets..."
-              className="w-52 pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5a9e8f]/30"
+              className="w-52 pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3d5a45]/30"
             />
           </div>
           {isAdmin && (
@@ -92,6 +123,15 @@ export default function MarketsPage() {
           )}
         </div>
       </div>
+
+      {growth && (
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <GrowthBlock label="This week" caption={String(growth.week)} />
+          <GrowthBlock label="This month" caption={String(growth.month)} />
+          <GrowthBlock label="This year" caption={String(growth.year)} />
+          <GrowthBlock label="Total registered" caption={String(growth.total)} />
+        </section>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {loading ? (

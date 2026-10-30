@@ -13,6 +13,7 @@ export async function GET() {
   const yesterday = new Date(today.getTime() - 86400000);
   const weekAgo = new Date(today.getTime() - 7 * 86400000);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const yearStart = new Date(today.getFullYear(), 0, 1);
 
   const scope = await getScope(user);
   const bizFilter = businessScopeFilter(scope);
@@ -30,6 +31,8 @@ export async function GET() {
     paymentsToday,
     failedToday,
     newVendorsWeek,
+    newVendorsMonth,
+    newVendorsYear,
     weeklyRevenue,
     scopedBusinesses,
     monthPayments,
@@ -60,6 +63,8 @@ export async function GET() {
       where: { AND: [{ paid_at: { gte: today }, status: "Failed" }, payFilter] },
     }),
     prisma.business.count({ where: { AND: [{ registration_date: { gte: weekAgo } }, bizFilter] } }),
+    prisma.business.count({ where: { AND: [{ registration_date: { gte: monthStart } }, bizFilter] } }),
+    prisma.business.count({ where: { AND: [{ registration_date: { gte: yearStart } }, bizFilter] } }),
     prisma.revenueSummary.findMany({
       where: { AND: [{ summary_date: { gte: weekAgo } }, subOfficeFilter] },
       orderBy: { summary_date: "asc" },
@@ -124,6 +129,8 @@ export async function GET() {
       transactions_today: paymentsToday,
       failed_today: failedToday,
       new_vendors_week: newVendorsWeek,
+      new_vendors_month: newVendorsMonth,
+      new_vendors_year: newVendorsYear,
       collection_rate: expectedToday ? Math.round((revenueToday / expectedToday) * 100) : 0,
     },
     section_breakdown,

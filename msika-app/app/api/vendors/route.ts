@@ -75,9 +75,13 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ businesses: data, count: data.length });
 }
 
-// POST /api/vendors — register a vendor (with geo-fence validation)
-// Spec §2.3: vendor registration is Administrator/Supervisor only — Collectors
-// cannot register vendors by default (enforced server-side, Rule 6).
+// POST /api/vendors — register a vendor
+// GEO-REFERENCE policy: every vendor keeps the EXACT coordinates the staff
+// member captured at registration — the location is referenced, never moved.
+// A geofence check (inside/outside + distance to the market centre) is
+// computed for information and enforcement, but the stored point is always
+// the true recorded position. This is what lets collectors monitor precisely
+// where a vendor actually is on the map and who has not paid.
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -131,7 +135,9 @@ export async function POST(request: NextRequest) {
       ? await prisma.marketSection.findUnique({ where: { section_id: Number(section_id) } })
       : null;
 
-    // ---- Geo-fence vendor location algorithm ----
+    // ---- Geo-reference vendor location ----
+    // Exact recorded coordinates are stored; derived placement is only used
+    // when NO coordinates were captured at all.
     let lat: number | null = null;
     let lng: number | null = null;
     let locationSource = "none";
@@ -141,11 +147,11 @@ export async function POST(request: NextRequest) {
     const lngRaw = gps_longitude != null ? Number(gps_longitude) : NaN;
 
     if (Number.isFinite(latRaw) && Number.isFinite(lngRaw) && (latRaw !== 0 || lngRaw !== 0)) {
-      const resolved = resolveVendorLocation("PENDING", section?.section_name || "", { lat: latRaw, lng: lngRaw });
-      lat = resolved.location.lat;
-      lng = resolved.location.lng;
+      // Store the exact recorded position — no snapping, no shifting.
+      lat = latRaw;
+      lng = lngRaw;
       locationSource = "gps";
-      geofence = checkGeofence(resolved.location);
+      geofence = checkGeofence({ lat: latRaw, lng: lngRaw });
     }
 
     // Generate a unique vendor number
@@ -160,7 +166,8 @@ export async function POST(request: NextRequest) {
     }
     if (!vendorNumber) vendorNumber = `V-${Date.now()}`;
 
-    // If GPS was not supplied, derive a stable position from the vendor number.
+    // If GPS was not supplied, derive a stable reference position from the
+    // vendor number so the stall still appears on the map.
     if (lat === null || lng === null) {
       const resolved = resolveVendorLocation(vendorNumber, section?.section_name || "", null);
       lat = resolved.location.lat;
@@ -212,7 +219,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       resource: "Business",
       resourceId: vendorNumber,
-      details: `Registered vendor ${businessName} at [${lat?.toFixed(5)}, ${lng?.toFixed(5)}] (${locationSource})`,
+      details: `Registered vendor ${businessName} at [${lat?.toFixed(5)}, ${lng?.toFixed(5)}] (${locationSource}, ${geofence?.inside ? "inside" : "outside"} market boundary)`,
     });
 
     return NextResponse.json({
