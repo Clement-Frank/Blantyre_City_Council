@@ -9,7 +9,7 @@
 // Amounts count up on load and the share bar animates its width.
 
 import { useEffect, useRef, useState } from "react";
-import { Banknote, Smartphone, ArrowUpRight, Clock3 } from "lucide-react";
+import { ArrowUpRight, Banknote, Clock3 } from "lucide-react";
 
 interface ChannelMix {
   channel: string;
@@ -22,10 +22,9 @@ interface ChannelDef {
   label: string;
   sub: string;
   color: string;
-  soft: string;
   text: string;
-  icon: React.ElementType;
-  logo?: string;
+  logo: string;
+  logoAlt: string;
   motion: "shine" | "ripple" | "bars";
 }
 
@@ -33,31 +32,31 @@ const CHANNEL_DEFS: ChannelDef[] = [
   {
     key: "TNMMpamba",
     label: "TNM Mpamba",
-    sub: "Mobile money",
-    color: "#00a0a0",
-    soft: "#e6f7f7",
-    text: "#007878",
-    icon: Smartphone,
+    sub: "Mobile money payments",
+    color: "#007a7a",
+    text: "#006464",
+    logo: "/brands/tnm.png",
+    logoAlt: "TNM Mpamba",
     motion: "bars",
   },
   {
     key: "AirtelMoney",
     label: "Airtel Money",
-    sub: "Mobile money",
-    color: "#e40000",
-    soft: "#fdeaea",
-    text: "#b80000",
-    icon: Smartphone,
+    sub: "Mobile money payments",
+    color: "#e30613",
+    text: "#b10410",
+    logo: "/brands/airtel.png",
+    logoAlt: "Airtel Money",
     motion: "ripple",
   },
   {
     key: "Cash",
     label: "Cash (collector)",
-    sub: "Collected on the ground",
-    color: "#f59e0b",
-    soft: "#fef4e2",
-    text: "#a16207",
-    icon: Banknote,
+    sub: "Handed to field staff",
+    color: "#b45309",
+    text: "#8a3f07",
+    logo: "/brands/cash.svg",
+    logoAlt: "Cash",
     motion: "shine",
   },
 ];
@@ -113,7 +112,9 @@ export default function ChannelMixCards() {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-gray-800">How the money arrived today</h2>
-          <p className="text-xs text-gray-400">Cash, Airtel Money and TNM Mpamba, live as payments land</p>
+          <p className="text-xs text-gray-400">
+            Today&apos;s market fees split by payment channel — cash, Airtel Money and TNM Mpamba
+          </p>
         </div>
         <div className="hidden sm:flex items-center gap-3 text-[11px] text-gray-400">
           <span className="inline-flex items-center gap-1.5">
@@ -124,7 +125,7 @@ export default function ChannelMixCards() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {CHANNEL_DEFS.map((def, idx) => {
           const data = byChannel(def.key);
           return (
@@ -159,7 +160,6 @@ function ChannelCard({
   pending: number;
   index: number;
 }) {
-  const Icon = def.icon;
   const animated = useCountUp(amount);
   const share = total > 0 ? Math.round((amount / total) * 100) : 0;
 
@@ -201,18 +201,24 @@ function ChannelCard({
       )}
 
       <div className="relative flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <div
-            className="relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: def.soft, color: def.text }}
+            className="relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-white border border-gray-200 shadow-sm"
+            title={def.logoAlt}
           >
-            <Icon size={18} className="ch-icon" />
+            {/* Official brand logos (served from /public/brands) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={def.logo}
+              alt={def.logoAlt}
+              className="ch-icon h-9 w-9 object-contain"
+            />
             {def.motion === "ripple" && (
               <span className="absolute inset-0 rounded-xl ch-ping" style={{ borderColor: def.color }} />
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{def.label}</p>
+            <p className="text-sm font-semibold text-gray-800 leading-snug">{def.label}</p>
             <p className="text-[11px] text-gray-400">{def.sub}</p>
           </div>
         </div>

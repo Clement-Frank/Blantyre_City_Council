@@ -94,8 +94,25 @@ function useCountUp(target: number, duration = 900) {
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashStats | null>(null);
+  const [today, setToday] = useState("");
   const canCollect = can(user?.role, "record_payment");
   const canEnrol = can(user?.role, "register_vendor");
+
+  // Date is set after mount so server and client HTML always agree.
+  useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Africa/Blantyre",
+      }),
+    );
+  }, []);
+
+  const roleLabel =
+    user?.role === "Administrator" ? "System Administrator" : user?.role || "Staff";
 
   useEffect(() => {
     const load = () =>
@@ -126,13 +143,15 @@ export default function AdminDashboard() {
         <div className="relative p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center gap-8">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#AFE607]">
-              Msika · Market Fee Control Tower
+              Blantyre City Council · Market Fee Management
             </p>
             <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Today at Limbe Market
+              Limbe Market — today&apos;s fee collection
             </h1>
             <p className="mt-1 text-sm text-white/50">
-              Karani, {user?.fullName || "Administrator"} — here is who has paid and how much has come in.
+              {user?.fullName || "Council staff"} ({roleLabel})
+              {today ? ` · ${today}` : ""} — here is what the market has collected today, which
+              vendors have paid, and what is still outstanding.
             </p>
 
             <div className="mt-6 flex flex-wrap items-end gap-x-10 gap-y-4">
