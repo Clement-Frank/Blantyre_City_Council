@@ -182,9 +182,9 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <a href="#" className="text-xs text-[#0E0E0B] hover:text-[#AFE607] transition-colors underline underline-offset-2 font-medium">
-                    Forgot Password?
-                  </a>
+                  <p className="text-[11px] text-gray-400">
+                    Forgot password? Ask a council administrator to reset it.
+                  </p>
                 </div>
                 <button
                   type="submit"
