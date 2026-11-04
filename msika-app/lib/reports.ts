@@ -304,9 +304,18 @@ export async function collectorReport(scope: Scope): Promise<ReportTable> {
   from.setHours(0, 0, 0, 0);
   from.setDate(from.getDate() - 29);
 
+  // A collector sees only their own performance row; supervisors see their
+  // sub-office; administrators see everyone.
+  const collectorWhere =
+    scope.role === "Collector"
+      ? { collector_id: scope.collectorId ?? -1 }
+      : scope.subOfficeId
+        ? { sub_office_id: scope.subOfficeId }
+        : {};
+
   const [collectors, payments, registrations] = await Promise.all([
     prisma.collector.findMany({
-      where: scope.subOfficeId ? { sub_office_id: scope.subOfficeId } : {},
+      where: collectorWhere,
       select: {
         collector_id: true,
         full_name: true,
