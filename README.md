@@ -35,7 +35,7 @@ summaries, queues an SMS receipt, and writes an audit-log entry.
 | **Vendors** | Register vendors with their EXACT recorded GPS coordinates (geo-reference), search by name/phone/stall, vendor profile + payment history |
 | **Live Map** | Leaflet map of Limbe Market within its real OpenStreetMap boundary; each dot sits at the vendor's exact recorded coordinates; green = paid today, red = unpaid |
 | **Payments** | Record cash (collector) or initiate mobile-money payments; verify by vendor number |
-| **Reports / Pulse** | Daily/weekly revenue breakdowns by channel (Cash, AirtelMoney, TNMMpamba), section, fee type |
+| **Reports / Pulse** | Live daily/monthly/compliance/collector/trend reports by channel (Cash, AirtelMoney, TNMMpamba), section and fee type — downloadable as CSV or saved as PDF |
 | **Markets** | Markets & sections with vendor counts and market-growth insight |
 | **Collectors / Supervisors** | Add and manage field staff; collector cash stats |
 | **Reminders** | SMS payment reminders to today's unpaid vendors (Twilio), 6h per-vendor cooldown |
@@ -44,7 +44,7 @@ summaries, queues an SMS receipt, and writes an audit-log entry.
 | **Settings** | Dark/light theme, profile, sign-out |
 
 All modules require sign-in and are scoped by role:
-**Administrator** (everything) / **Supervisor** (own sub-office) /
+**Administrator** (oversight: staff, API clients, audit, reports — no cash collection or vendor enrolment) / **Supervisor** (own sub-office) /
 **Collector** (vendors + own-recorded payments) — enforced server-side.
 
 ## 2. Repository layout

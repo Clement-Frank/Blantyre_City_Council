@@ -109,7 +109,9 @@ COUNT=$(jqget ".count")
 echo "        total vendors visible to admin: $COUNT"
 VENDOR=$(jqget ".businesses[0].vendor_number")
 [ -z "$VENDOR" ] || [ "$VENDOR" = "null" ] && { bad "could not read a vendor_number from list"; VENDOR="V-01001"; }
-echo "        using test vendor: $VENDOR"
+FEE=$(jqget ".businesses[0].business_type.fee_amount")
+case "$FEE" in ''|null) FEE=300 ;; esac
+echo "        using test vendor: $VENDOR (fee MWK $FEE)"
 
 req GET "/api/vendors/meta" -b "$JAR" -s
 expect "GET /api/vendors/meta" "200" "$CODE"
@@ -125,11 +127,14 @@ section "4. Payments (list, record, verify)"
 req GET "/api/payments" -b "$JAR" -s
 expect "GET /api/payments" "200" "$CODE"
 
+# Separation of duties: administrators oversee the ledger, field staff collect.
 req POST "/api/payments" -b "$JAR" -s \
-  -d "{\"vendor_number\":\"$VENDOR\",\"amount\":100,\"payment_channel\":\"Cash\"}"
-# 409 = vendor already paid today (daily idempotency) — a feature, not a bug
-expect "POST /api/payments (record cash payment)" "200/201/409" "$CODE" \
-  "$([ "$CODE" = "409" ] && echo 'vendor already paid today')"
+  -d "{\"vendor_number\":\"$VENDOR\",\"amount\":$FEE,\"payment_channel\":\"Cash\"}"
+expect "POST /api/payments as admin is 403 (no cash handling)" "403" "$CODE"
+
+req POST "/api/vendors" -b "$JAR" -s \
+  -d "{\"business_name\":\"Admin Attempt\",\"owner_name\":\"N/A\",\"phone_number\":\"0999000000\",\"market_id\":1,\"business_type_id\":1}"
+expect "POST /api/vendors as admin is 403 (field enrolment only)" "403" "$CODE"
 
 req GET "/api/payments/verify?vendor_number=$VENDOR" -b "$JAR" -s
 expect "GET /api/payments/verify?vendor_number=$VENDOR" "200" "$CODE"
@@ -231,6 +236,25 @@ expect "GET /api/market-intel as collector (scoped)" "200" "$CODE"
 CV=$(jqget ".summary.vendors")
 echo "        collector sees $CV scored vendors (own registrations only)"
 
+# Geo-reference: the collector enrols a stall and the EXACT coordinates are kept.
+REG_LAT="-15.818523"; REG_LNG="35.054317"
+req POST "/api/vendors" -b "$JAR_C" -s \
+  -d "{\"business_name\":\"Smoke Geo Stall $(date +%s)\",\"owner_name\":\"Smoke Tester\",\"phone_number\":\"0998$(date +%s | tail -c 7)\",\"market_id\":1,\"business_type_id\":2,\"section_id\":1,\"gps_latitude\":$REG_LAT,\"gps_longitude\":$REG_LNG}"
+expect "POST /api/vendors as collector (field enrolment)" "200/201" "$CODE"
+KEPT_LAT=$(jqget ".location.lat")
+KEPT_LNG=$(jqget ".location.lng")
+if [ "$KEPT_LAT" = "$REG_LAT" ] && [ "$KEPT_LNG" = "$REG_LNG" ]; then
+  ok "geo-reference: stored coordinates match the recorded GPS exactly ($KEPT_LAT, $KEPT_LNG)"
+else
+  bad "geo-reference: stored $KEPT_LAT, $KEPT_LNG expected $REG_LAT, $REG_LNG"
+fi
+
+# Cash collection is a collector capability (409 = already paid today).
+req POST "/api/payments" -b "$JAR_C" -s \
+  -d "{\"vendor_number\":\"$VENDOR\",\"amount\":$FEE,\"payment_channel\":\"Cash\"}"
+expect "POST /api/payments as collector (record cash)" "200/201/409" "$CODE" \
+  "$([ "$CODE" = "409" ] && echo 'vendor already paid today')"
+
 # ============================================================
 section "9. QR self-pay (public pay-status + paycode)"
 req GET "/api/public/pay-status?vendor_number=$VENDOR" -s
@@ -306,6 +330,19 @@ else
 fi
 
 # ============================================================
+section "12b. Reports (live summaries + CSV download)"
+for RT in monthly compliance collectors revenue; do
+  req GET "/api/reports/summary?type=$RT" -b "$JAR"
+  expect "GET /api/reports/summary?type=$RT" "200" "$CODE"
+done
+req GET "/api/reports/daily" -b "$JAR"
+expect "GET /api/reports/daily" "200" "$CODE"
+req GET "/api/reports/export?type=monthly" -b "$JAR"
+expect "GET /api/reports/export?type=monthly (CSV download)" "200" "$CODE"
+req GET "/api/reports/export?type=nonsense" -b "$JAR"
+expect "GET /api/reports/export with unknown type is 400" "400" "$CODE"
+
+# ============================================================
 section "13. Reminder cron endpoint (backup scheduler trigger)"
 req GET "/api/cron/reminders"
 if [ "$CODE" = "401" ]; then
@@ -313,8 +350,10 @@ if [ "$CODE" = "401" ]; then
 elif [ "$CODE" = "200" ]; then
   ok "GET /api/cron/reminders -> 200"
   echo "        reminders run result: $(tr -d '\n' <"$BODY" | cut -c 1-120)"
+elif [ "$CODE" = "503" ]; then
+  warn "GET /api/cron/reminders -> 503 (production mode, CRON_SECRET not configured — guard working)"
 else
-  bad "GET /api/cron/reminders -> $CODE (expected 200 or 401)"
+  bad "GET /api/cron/reminders -> $CODE (expected 200, 401 or 503)"
 fi
 
 # ============================================================

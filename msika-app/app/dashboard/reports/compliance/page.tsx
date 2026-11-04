@@ -1,126 +1,169 @@
 "use client";
 
-import { ArrowLeft, Download, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, Loader2, Search } from "lucide-react";
+import ReportToolbar from "@/components/dashboard/ReportToolbar";
 
-const complianceData = [
-  { vendorId: "V-00231", name: "Grace Banda", market: "Limbe Market", section: "Vegetables", daysPaid: 28, daysMissed: 2, status: "Compliant", streak: 14 },
-  { vendorId: "V-00189", name: "John Phiri", market: "Limbe Market", section: "Fish", daysPaid: 30, daysMissed: 0, status: "Compliant", streak: 30 },
-  { vendorId: "V-00342", name: "Mercy Chirwa", market: "Limbe Market", section: "Textiles", daysPaid: 15, daysMissed: 15, status: "Non-Compliant", streak: 0 },
-  { vendorId: "V-00156", name: "Patrick Banda", market: "Limbe Market", section: "Hardware", daysPaid: 25, daysMissed: 5, status: "At Risk", streak: 3 },
-  { vendorId: "V-00411", name: "Esther Nkhoma", market: "Limbe Market", section: "Vegetables", daysPaid: 30, daysMissed: 0, status: "Compliant", streak: 30 },
-];
+interface ReportTable {
+  title: string;
+  subtitle: string;
+  summary: { label: string; value: string }[];
+  columns: string[];
+  rows: (string | number)[][];
+}
 
-const statusStyles: Record<string, string> = {
+const STATUS_STYLES: Record<string, string> = {
   Compliant: "bg-emerald-50 text-emerald-700",
   "At Risk": "bg-amber-50 text-amber-700",
   "Non-Compliant": "bg-rose-50 text-rose-700",
 };
 
-const statusIcon: Record<string, React.ReactNode> = {
-  Compliant: <ShieldCheck size={16} className="text-emerald-600" />,
-  "At Risk": <ShieldAlert size={16} className="text-amber-600" />,
-  "Non-Compliant": <ShieldX size={16} className="text-rose-600" />,
-};
-
 export default function ComplianceReportPage() {
-  const compliantCount = complianceData.filter((item) => item.status === "Compliant").length;
-  const atRiskCount = complianceData.filter((item) => item.status === "At Risk").length;
-  const nonCompliantCount = complianceData.filter((item) => item.status === "Non-Compliant").length;
+  const [report, setReport] = useState<ReportTable | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("All");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/reports/summary?type=compliance")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setReport)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const rows = useMemo(() => {
+    const all = report?.rows ?? [];
+    return all.filter((row) => {
+      const matchesStatus = status === "All" || row[8] === status;
+      const q = search.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        String(row[0]).toLowerCase().includes(q) ||
+        String(row[1]).toLowerCase().includes(q) ||
+        String(row[2]).toLowerCase().includes(q);
+      return matchesStatus && matchesSearch;
+    });
+  }, [report, status, search]);
 
   return (
     <div className="space-y-6 max-w-[1200px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/reports" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <Link href="/dashboard/reports" className="p-2 hover:bg-gray-100 rounded-lg transition-colors no-print">
             <ArrowLeft size={20} className="text-gray-600" />
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Vendor Compliance</h1>
-            <p className="text-sm text-gray-500 mt-1">Payment frequency and compliance tracking</p>
+            <p className="text-sm text-gray-500 mt-1">{report?.subtitle ?? "Payment frequency over the last 30 days"}</p>
           </div>
         </div>
-        <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20">
-          <Download size={16} />
-          Export
-        </button>
+        <ReportToolbar type="compliance" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <ShieldCheck size={20} className="text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">{compliantCount}</p>
-              <p className="text-xs text-gray-500">Compliant</p>
-            </div>
+      {loading ? (
+        <div className="py-20 flex items-center justify-center gap-2 text-sm text-gray-400">
+          <Loader2 size={16} className="animate-spin" /> Generating report…
+        </div>
+      ) : !report ? (
+        <p className="text-sm text-gray-500">Report unavailable.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {report.summary.map((s, i) => (
+              <div key={s.label} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm print-block">
+                <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+                <p className={`text-2xl font-bold tabular-nums ${i === 0 ? "text-emerald-700" : i === 1 ? "text-amber-600" : "text-rose-600"}`}>
+                  {s.value}
+                </p>
+              </div>
+            ))}
           </div>
-        </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <ShieldAlert size={20} className="text-amber-600" />
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm print-block">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h3 className="text-base font-bold text-gray-800">Vendor Status ({rows.length})</h3>
+              <div className="flex flex-wrap items-center gap-2 no-print">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search vendor…"
+                    className="pl-8 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3d5a45]/30 w-44"
+                  />
+                </div>
+                {["All", "Compliant", "At Risk", "Non-Compliant"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatus(s)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      status === s ? "bg-[#3d5a45] text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">{atRiskCount}</p>
-              <p className="text-xs text-gray-500">At Risk</p>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    {report.columns.map((c) => (
+                      <th key={c} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={report.columns.length} className="px-5 py-10 text-center text-sm text-gray-400">
+                        No vendors match this filter.
+                      </td>
+                    </tr>
+                  )}
+                  {rows.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-medium text-gray-800">{row[1]}</p>
+                        <p className="text-xs text-gray-500">{row[0]}</p>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{row[2]}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{row[3]}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{row[4]}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{row[5]} paid · {row[6]} missed</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-gray-100 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                row[8] === "Compliant" ? "bg-emerald-500" : row[8] === "At Risk" ? "bg-amber-500" : "bg-rose-500"
+                              }`}
+                              style={{ width: String(row[7]) }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500">{row[7]}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[String(row[8])] ?? "bg-gray-50 text-gray-600"}`}>
+                          {row[8]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            <p className="text-[11px] text-gray-400 mt-4">
+              A vendor is compliant at 80% or more paid days in the window, at risk at 50–79%, non-compliant below 50%.
+            </p>
           </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
-              <ShieldX size={20} className="text-rose-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">{nonCompliantCount}</p>
-              <p className="text-xs text-gray-500">Non-Compliant</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-        <h3 className="text-base font-bold text-gray-800 mb-4">Vendor Status Overview</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50">
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Vendor</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Market</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Section</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Paid / Missed</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Streak</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {complianceData.map((item) => (
-                <tr key={item.vendorId} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="text-sm font-medium text-gray-800">{item.name}</div>
-                    <div className="text-xs text-gray-500">{item.vendorId}</div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{item.market}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{item.section}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{item.daysPaid} / {item.daysMissed}</td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[item.status]}`}>
-                      {statusIcon[item.status]}
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{item.streak} days</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

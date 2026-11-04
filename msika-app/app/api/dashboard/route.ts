@@ -37,6 +37,8 @@ export async function GET() {
     scopedBusinesses,
     monthPayments,
     dailySeries,
+    todayChannelMix,
+    pendingWallets,
   ] = await Promise.all([
     prisma.business.count({ where: bizFilter }),
     prisma.business.count({ where: { AND: [{ status: "Active" }, bizFilter] } }),
@@ -82,6 +84,17 @@ export async function GET() {
     prisma.revenueSummary.findMany({
       where: { AND: [{ summary_date: { gte: new Date(today.getTime() - 29 * 86400000) } }, subOfficeFilter] },
       orderBy: { summary_date: "asc" },
+    }),
+    // Today's money per channel — powers the animated cash / Airtel / Mpamba cards
+    prisma.payment.groupBy({
+      by: ["payment_channel"],
+      where: { AND: [{ status: "Completed", paid_at: { gte: today } }, payFilter] },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    // Wallet payments waiting on a provider webhook (Pending today)
+    prisma.payment.count({
+      where: { AND: [{ status: "Pending", created_at: { gte: today } }, payFilter] },
     }),
   ]);
 
@@ -133,6 +146,12 @@ export async function GET() {
       new_vendors_year: newVendorsYear,
       collection_rate: expectedToday ? Math.round((revenueToday / expectedToday) * 100) : 0,
     },
+    channels: todayChannelMix.map((c) => ({
+      channel: c.payment_channel,
+      amount: Number(c._sum.amount ?? 0),
+      count: c._count._all,
+    })),
+    pending_wallets: pendingWallets,
     section_breakdown,
     weekly_revenue: weeklyRevenue.map((r) => ({
       date: r.summary_date.toISOString().slice(0, 10),

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, User, Phone, MapPin, Store, Hash, Crosshair, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, User, Phone, MapPin, Store, Hash, Crosshair, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/capabilities";
 
 interface Market {
   market_id: number;
@@ -24,6 +26,9 @@ interface RegisterResult {
 }
 
 export default function NewVendorPage() {
+  const { user } = useAuth();
+  const canEnrol = can(user?.role, "register_vendor");
+
   const [markets, setMarkets] = useState<Market[]>([]);
   const [types, setTypes] = useState<BusinessType[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -161,9 +166,23 @@ export default function NewVendorPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Register Vendor</h1>
-          <p className="text-sm text-gray-500 mt-1">Onboard a new market vendor with geo-fenced location</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Capture the vendor&apos;s exact GPS position — the map keeps the coordinates you record
+          </p>
         </div>
       </div>
+
+      {!canEnrol && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <ShieldAlert size={18} className="text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Field enrolment only</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Administrators oversee the system and cannot register vendors. Ask a collector or supervisor to enrol the vendor.
+            </p>
+          </div>
+        </div>
+      )}
 
       {result?.error && (
         <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -378,7 +397,7 @@ export default function NewVendorPage() {
           </Link>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !canEnrol}
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20 disabled:opacity-50"
           >
             <Save size={16} />

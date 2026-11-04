@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { getScope, businessScopeFilter } from "@/lib/permissions";
+import { getScope, businessScopeFilter, can, CAPABILITY_DENIED } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { resolveVendorLocation, checkGeofence } from "@/lib/geofence";
 
@@ -85,11 +85,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role === "Collector") {
-    return NextResponse.json(
-      { error: "Collectors cannot register vendors — ask your supervisor" },
-      { status: 403 }
-    );
+  // Separation of duties: enrolment happens in the field (collector or
+  // supervisor); administrators oversee and do not create vendors.
+  if (!can(user.role, "register_vendor")) {
+    return NextResponse.json({ error: CAPABILITY_DENIED.register_vendor }, { status: 403 });
   }
 
   try {

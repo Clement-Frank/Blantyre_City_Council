@@ -7,6 +7,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Search, Download, CheckCircle2, XCircle, Clock, PlusCircle, X, Banknote } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/capabilities";
 
 interface Payment {
   payment_id: number;
@@ -50,6 +52,10 @@ function ChannelBadge({ channel }: { channel: string }) {
 }
 
 export default function PaymentsPage() {
+  const { user } = useAuth();
+  // Separation of duties: administrators oversee the ledger, field staff record.
+  const canRecord = can(user?.role, "record_payment");
+
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
@@ -112,17 +118,23 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold text-gray-800">Payments</h1>
           <p className="text-sm text-gray-500 mt-1">Record fees and follow the live transaction feed — reminders go out automatically</p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => {
-              setShowRecord(true);
-              setRecordMsg(null);
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
-          >
-            <PlusCircle size={16} />
-            Record Payment
-          </button>
+        <div className="flex gap-3 items-center">
+          {canRecord ? (
+            <button
+              onClick={() => {
+                setShowRecord(true);
+                setRecordMsg(null);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
+            >
+              <PlusCircle size={16} />
+              Record Payment
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#e8f0ec] text-[#3d5a45] rounded-xl text-xs font-medium max-w-[260px]">
+              Read-only oversight — cash is recorded by collectors and supervisors
+            </span>
+          )}
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors"

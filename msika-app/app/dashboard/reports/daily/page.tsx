@@ -5,8 +5,9 @@
 // collects through — USSD is intentionally not part of the system).
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, TrendingUp, Users, Receipt, Banknote, Smartphone, Loader2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, Receipt, Banknote, Smartphone, Loader2 } from "lucide-react";
 import Link from "next/link";
+import ReportToolbar from "@/components/dashboard/ReportToolbar";
 
 interface Report {
   date: string;
@@ -56,7 +57,7 @@ export default function DailyReportPage() {
     <div className="space-y-6 max-w-[1200px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/reports" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <Link href="/dashboard/reports" className="p-2 hover:bg-gray-100 rounded-lg transition-colors no-print">
             <ArrowLeft size={20} className="text-gray-600" />
           </Link>
           <div>
@@ -64,21 +65,15 @@ export default function DailyReportPage() {
             <p className="text-sm text-gray-500 mt-1">Live figures from recorded payments</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="date"
             value={date}
             max={new Date().toISOString().slice(0, 10)}
             onChange={(e) => setDate(e.target.value)}
-            className="px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+            className="px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm no-print"
           />
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
-          >
-            <Download size={16} />
-            Print / PDF
-          </button>
+          <ReportToolbar type="daily" date={date} />
         </div>
       </div>
 

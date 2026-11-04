@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, Plus, MoreHorizontal, Phone, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/capabilities";
 
 interface Vendor {
   business_id: number;
@@ -25,6 +26,7 @@ export default function VendorsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const { user } = useAuth();
+  const canEnrol = can(user?.role, "register_vendor");
 
   const scopeHint =
     user?.role === "Collector"
@@ -69,13 +71,19 @@ export default function VendorsPage() {
             </p>
           )}
         </div>
-        <Link
-          href="/dashboard/vendors/new"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
-        >
-          <Plus size={16} />
-          Register Vendor
-        </Link>
+        {canEnrol ? (
+          <Link
+            href="/dashboard/vendors/new"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3d5a45] hover:bg-[#2d4335] text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[#3d5a45]/20"
+          >
+            <Plus size={16} />
+            Register Vendor
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#e8f0ec] text-[#3d5a45] rounded-xl text-xs font-medium">
+            Read-only oversight — enrolment is done by field staff
+          </span>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

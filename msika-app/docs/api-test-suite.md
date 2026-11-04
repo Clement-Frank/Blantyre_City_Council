@@ -19,10 +19,10 @@ file with `-c` and send it back with `-b`. Never handle a raw token.
 `Collector`, `Supervisor`. There is **no Vendor role and no vendor account anywhere** —
 this is the single most important finding of this audit.
 
-**RBAC scoping** (lib/permissions.ts):
-- Administrator → everything
-- Supervisor → data in their sub-office's markets
-- Collector → sees all vendors (for collection), but payment *details* only for payments they recorded
+**RBAC scoping** (lib/permissions.ts + lib/capabilities.ts):
+- Administrator → oversight: staff accounts, API clients, audit trail, reports and the live map — **cannot record payments and cannot enrol vendors** (separation of duties)
+- Supervisor → data in their sub-office's markets; enrols vendors and records payments
+- Collector → sees all vendors (for collection), enrols vendors, records cash only; payment *details* only for payments they recorded
 - No session → 401
 
 **Wallet payments are SIMULATED, not real.** There is no Airtel Money / TNM Mpamba
@@ -207,14 +207,15 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE_URL/api/vendors" \
   -d '{"business_name":"Self-Reg Test","owner_name":"Unknown Person","phone_number":"0999000001","market_id":1,"business_type_id":1}'
 ```
 - **Expected: `401`** ("Unauthorized"), body `{"error":"Unauthorized"}`.
-- What this proves: the ONLY registration endpoint requires an authenticated **Administrator or Supervisor**. There is no vendor self-registration.
+- What this proves: the ONLY registration endpoint requires an authenticated **Collector or Supervisor** (field staff). Administrators are refused with 403 and there is no vendor self-registration.
 - What failure would mean: if you get 200/201 here, registration was left unauthenticated — that would be a security hole, not a feature.
 
 Also shows there is no 403 (role-gate) without a session — auth itself is the first gate.
 
-### 1b. Registration as Administrator (the supported path) — full fields incl. GPS
+### 1b. Registration as field staff (Collector or Supervisor) — full fields incl. GPS
 ```bash
-curl -s -b A.jar -H 'Content-Type: application/json' -X POST "$BASE_URL/api/vendors" \
+# A.jar is the administrator (oversight) jar, C.jar the collector jar.
+curl -s -b C.jar -H 'Content-Type: application/json' -X POST "$BASE_URL/api/vendors" \
   -d '{
     "business_name": "Chimwemwe Groceries TEST", "owner_name": "Test Owner",
     "phone_number": "0999777001", "national_id": "TEST-9999",
@@ -237,18 +238,19 @@ curl -s -w '\n%{http_code}\n' -b A.jar -H 'Content-Type: application/json' -X PO
 ```
 - Expected **400** `{"error":"business_name, owner_name, phone_number, market_id and business_type_id are required"}`.
 
-### 1d. Collector cannot register (RBAC)
+### 1d. Administrator cannot register (separation of duties)
 ```bash
-curl -s -w '\n%{http_code}\n' -b C.jar -X POST "$BASE_URL/api/vendors" \
+curl -s -w '\n%{http_code}\n' -b A.jar -X POST "$BASE_URL/api/vendors" \
   -H 'Content-Type: application/json' \
   -d '{"business_name":"X","owner_name":"Y","phone_number":"0999000009","market_id":1,"business_type_id":1}'
 ```
-- Expected **403** `Collectors cannot register vendors — ask your supervisor`.
+- Expected **403** `Administrators cannot enrol vendors — registration is done in the field by collectors and supervisors`.
+- Collectors and supervisors receive 200/201 here (field enrolment).
 
 ### 1e. Duplicate registration — know exactly what is and isn't protected
 ```bash
 # Re-register with the same owner/phone: succeeds (new vendor_number) → NOT deduped
-curl -s -w '\n%{http_code}\n' -b A.jar -H 'Content-Type: application/json' -X POST \
+curl -s -w '\n%{http_code}\n' -b C.jar -H 'Content-Type: application/json' -X POST \
   "$BASE_URL/api/vendors" \
   -d '{"business_name":"Chimwemwe Groceries TEST","owner_name":"Test Owner","phone_number":"0999777001","market_id":1,"business_type_id":1,"section_id":5}'
 ```
@@ -263,9 +265,11 @@ DB:
 psql "$DATABASE_URL" -c "SELECT vendor_number, business_name, gps_lat..., registration_date FROM \"Business\" WHERE business_name LIKE 'Chimwemwe%';"
 ```
 **TEST 1 verdict: NOT IMPLEMENTED (self-service path); staff-assisted path: PASS.**
+Coordinates are geo-referenced (stored exactly as recorded, never snapped) with an
+inside/outside market check returned for review.
 Missing to enable the spec's self-registration: a public `POST /api/vendors/register` with
-its own rate-limit + phone/NID dedupe, boundary *validation* (reject-and-return-error, not
-snap), and a vendor-facing status page keyed by the generated Vendor ID.
+its own rate-limit + phone/NID dedupe, and a vendor-facing status page keyed by the
+generated Vendor ID.
 
 ---
 
@@ -325,7 +329,8 @@ real charge callbacks calling the existing webhook endpoints).
 
 ### 3a. Staff-initiated wallet payment → Pending
 ```bash
-curl -s -w '\n%{http_code}\n' -b A.jar -H 'Content-Type: application/json' -X POST \
+# Supervisor jar: administrators are oversight-only and get 403 on POST /api/payments.
+curl -s -w '\n%{http_code}\n' -b S.jar -H 'Content-Type: application/json' -X POST \
   "$BASE_URL/api/payments" \
   -d '{"vendor_number":"V-01001","amount":300,"payment_channel":"AirtelMoney"}'
 # 200: { success, payment:{ status:"Pending", transaction_ref:"AM-XXXX-NNNN", … }, message:"Wallet payment initiated…" }
@@ -333,6 +338,7 @@ WREF=$(body | sed -n 's/.*"transaction_ref":"\([^"]*\)".*/\1/p'); echo "$WREF" >
 ```
 - Wrong amount (fee mismatch) → **400** `Amount must be the applicable fee (MWK 300)`.
 - Collector trying channel AirtelMoney → **403** cash-only.
+- Administrator recording any payment → **403** `Administrators cannot record payments — cash is collected and recorded by collectors and supervisors`.
 
 ### 3b. "Provider" confirms the payment (webhook simulation)
 ```bash
@@ -534,8 +540,8 @@ curl -s -b A.jar "$BASE_URL/api/map" | grep -o "\"vendor_number\":\"$VENDOR1\"[^
 # 5) Initial payment status  (public + staff views)
 curl -s "$BASE_URL/api/public/pay-status?vendor_number=$VENDOR1"    # paid_today:false + code
 
-# 6) "Initiate" wallet payment (admin records the vendor-initiated Airtel intent)
-curl -s -b A.jar -H 'Content-Type: application/json' -X POST "$BASE_URL/api/payments" \
+# 6) "Initiate" wallet payment (supervisor records the vendor-initiated Airtel intent)
+curl -s -b S.jar -H 'Content-Type: application/json' -X POST "$BASE_URL/api/payments" \
   -d "{\"vendor_number\":\"$VENDOR1\",\"amount\":300,\"payment_channel\":\"AirtelMoney\"}"
 WREF=$(…)   # transaction_ref of the PENDING payment record
 

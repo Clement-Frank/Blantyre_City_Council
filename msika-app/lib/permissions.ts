@@ -12,6 +12,11 @@ import type { SessionUser } from "./session";
  *  - anything else → nothing (empty result sets, writes rejected)
  */
 
+// Capability matrix lives in lib/capabilities.ts so client components can use
+// the same rules without pulling Prisma into the browser bundle.
+export { can, CAPABILITY_DENIED } from "./capabilities";
+export type { Capability } from "./capabilities";
+
 export interface Scope {
   role: string;
   /** id in the Collector table (role Collector) */

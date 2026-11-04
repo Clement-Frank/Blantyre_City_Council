@@ -131,13 +131,154 @@ body {
   animation: msika-live-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
+/* ============================================================
+   Channel cards — one signature motion per payment channel
+   ============================================================ */
+
+/* Cash: metallic shine sweep across the card */
+@keyframes ch-shine {
+  0% {
+    transform: translateX(0) skewX(-12deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(420%) skewX(-12deg);
+    opacity: 0;
+  }
+}
+.ch-shine {
+  animation: ch-shine 3.6s ease-in-out infinite;
+}
+
+/* Cash: banknotes drifting upward */
+@keyframes ch-coin {
+  0% {
+    transform: translateY(6px) rotate(-6deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-26px) rotate(8deg);
+    opacity: 0;
+  }
+}
+.ch-coin {
+  animation: ch-coin 3.2s ease-out infinite;
+}
+
+/* Airtel: mobile-money signal ripples */
+@keyframes ch-ripple {
+  0% {
+    transform: scale(0.45);
+    opacity: 0.45;
+    border-width: 2px;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+.ch-ripple {
+  border-style: solid;
+  border-radius: 9999px;
+  animation: ch-ripple 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+
+@keyframes ch-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+    border-width: 1.5px;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+    border-width: 0.5px;
+  }
+}
+.ch-ping {
+  border-style: solid;
+  animation: ch-ping 2s ease-out infinite;
+}
+
+/* TNM: equalizer bars */
+@keyframes ch-bar {
+  0%,
+  100% {
+    height: 18%;
+    opacity: 0.5;
+  }
+  40% {
+    height: 100%;
+    opacity: 1;
+  }
+  70% {
+    height: 35%;
+    opacity: 0.7;
+  }
+}
+.ch-bar {
+  height: 20%;
+  animation: ch-bar 1.5s ease-in-out infinite;
+}
+
+@keyframes ch-icon {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+.ch-icon {
+  animation: ch-icon 3s ease-in-out infinite;
+}
+
+/* Reports: printable / exportable pages */
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  .print-block {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border-color: #d1d5db !important;
+  }
+}
+
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .msika-rise,
   .msika-dot-pulse,
   .msika-pop,
   .msika-txn-pop,
-  .msika-live-ping {
+  .msika-live-ping,
+  .ch-shine,
+  .ch-coin,
+  .ch-ripple,
+  .ch-ping,
+  .ch-bar,
+  .ch-icon {
     animation: none;
   }
 }

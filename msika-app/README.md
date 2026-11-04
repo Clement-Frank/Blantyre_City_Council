@@ -81,9 +81,9 @@ Default test accounts are **test-data only** (`admin`, `j.phiri`, `a.banda`,
 
 | Actor | Auth | Scope |
 |---|---|---|
-| Administrator | username + password (bcrypt, JWT cookie) | everything in all markets |
-| Supervisor | username + password | all data in **their sub-office** |
-| Collector | username + password | vendors + cash payments |
+| Administrator | username + password (bcrypt, JWT cookie) | oversight of all markets — staff, API clients, audit, reports; **cannot collect cash or enrol vendors** |
+| Supervisor | username + password | all data in **their sub-office**; enrols vendors and records payments |
+| Collector | username + password | vendors + cash payments (own recordings) |
 | Vendor | no account — QR-code walk-in or field assistance | own stall |
 | Externals (Airtel, TNM) | API key (`x-api-key`) | sandbox/production webhooks |
 
@@ -120,6 +120,9 @@ Core use cases:
 - **UC-6 Revenue reporting (Supervisor/Admin).**
   `/api/reports/daily?date=YYYY-MM-DD` → totals by channel, fee type,
   market section + revenue summaries (from `RevenueSummary` roll-up table).
+  `/api/reports/summary?type=monthly|compliance|collectors|revenue` feeds the
+  other report pages from live payments; `/api/reports/export?type=…` returns
+  the same report as a CSV download (print view saves as PDF).
 
 - **UC-7 Reminders.**
   `/api/reminders` lists today's unpaid; `POST /api/reminders` SMSes them;
@@ -270,17 +273,19 @@ All under `app/api/**`. Cookie-auth endpoints expect the `token` httpOnly cookie
 | `POST /api/auth/logout` | — | clears cookie |
 | `GET /api/auth/me` | cookie | current user profile |
 | `GET /api/vendors` · `?search=` | cookie | list vendors (+ today's paid status per vendor) |
-| `POST /api/vendors` | cookie | register vendor (`business_name, owner_name, phone_number, market_id, business_type_id` required; geo-fenced location) |
+| `POST /api/vendors` | collector/supervisor | register vendor (`business_name, owner_name, phone_number, market_id, business_type_id` required); stores the EXACT recorded GPS coordinates and returns the inside/outside market check |
 | `GET /api/vendors/{vendor_number\|business_id}` | cookie | vendor profile, including last-30 payments (scoped) |
 | `GET /api/vendors/meta` | cookie | business types + fees, markets+sections (registration form data) |
 | `GET /api/payments` · `?status=&search=&limit=` | cookie | transaction list with vendor + collector info (scoped) |
-| `POST /api/payments` | cookie | record payment: cash collector→`COMPLETED` instantly; mobile-money initiation→`PENDING` until webhook |
+| `POST /api/payments` | collector/supervisor | record payment: cash collector→`COMPLETED` instantly; mobile-money initiation→`PENDING` until webhook. Administrators get `403` (separation of duties) |
 | `GET /api/payments/verify?vendor_number=V-01001` | cookie | on-the-spot payment verification (status, today's fee, history) |
 | `GET /api/public/pay-status?vendor_number=…` | public | minimal stall info + day fee + allow QR-code display |
 | `POST /api/pay/paycode` | paycode | public QR walk-in payment (vendor paycode-authenticated) |
 | `GET /api/map` · `?filter=paid\|unpaid=` | cookie | vendor positions + statuses + today's stats for the live map |
 | `GET /api/dashboard` | cookie | KPI totals, revenue trend, section split |
 | `GET /api/reports/daily?date=YYYY-MM-DD` | cookie | report per day: totals, transaction count, distinct paying vendors, and breakdowns by channel, fee type and section; omit date = today |
+| `GET /api/reports/summary?type=monthly\|compliance\|collectors\|revenue` | cookie | live report data (JSON) for the report pages, scoped by role |
+| `GET /api/reports/export?type=daily\|monthly\|compliance\|collectors\|revenue` | cookie | the same report as a CSV download (Excel/Sheets, and the source for Print → PDF) |
 | `GET /api/audit-logs` | admin | audit trail (filterable) |
 | `GET/POST/PATCH /api/api-clients` | admin | register provider clients, mint API keys (secret shown once), enable/disable |
 | `GET/POST /api/collectors` | admin | list/post collectors |

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { getScope, paymentScopeFilter, businessScopeFilter } from "@/lib/permissions";
+import { getScope, paymentScopeFilter, businessScopeFilter, can, CAPABILITY_DENIED } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { notifyVendor, paymentReceiptContent } from "@/lib/notify";
 
@@ -46,11 +46,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Separation of duties: administrators oversee, they do not collect.
+  if (!can(user.role, "record_payment")) {
+    return NextResponse.json({ error: CAPABILITY_DENIED.record_payment }, { status: 403 });
+  }
+
   const scope = await getScope(user);
 
   try {
     const body = await request.json();
-    const { vendor_number, amount, payment_channel, fee_type } = body as Record<string, string | number | undefined>;
+    const { vendor_number, amount, payment_channel } = body as Record<string, string | number | undefined>;
     const vendorNumberStr = vendor_number != null ? String(vendor_number) : "";
 
     if (!vendorNumberStr || !amount) {

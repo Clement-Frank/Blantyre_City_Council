@@ -12,18 +12,22 @@ test accounts (printed by `npx prisma db seed`).
 ```bash
 BASE=http://localhost:3000
 
-# --- 0. Log in as Administrator (cookie jar) and as Collector -----------------
+# --- 0. Log in as Administrator (oversight), Supervisor and Collector --------
 curl -s -c admin.jar -H 'Content-Type: application/json' \
   -d '{"username":"<admin test username>","password":"<seeded test password>"}' \
   "$BASE/api/auth/login"
-# → {"success":true,"role":"Administrator",…}
+# → {"success":true,"role":"Administrator",…}  (oversight only — see step 1b)
+
+curl -s -c sup.jar -H 'Content-Type: application/json' \
+  -d '{"username":"<supervisor test username>","password":"<seeded test password>"}' \
+  "$BASE/api/auth/login"
 
 curl -s -c coll.jar -H 'Content-Type: application/json' \
   -d '{"username":"<collector test username>","password":"<seeded test password>"}' \
   "$BASE/api/auth/login"
 
-# --- 1. Register a vendor at EXACT recorded coordinates -----------------------
-curl -s -b admin.jar -H 'Content-Type: application/json' -X POST \
+# --- 1. Enrol a vendor at EXACT recorded coordinates (field staff) ------------
+curl -s -b coll.jar -H 'Content-Type: application/json' -X POST \
   "$BASE/api/vendors" -d '{
     "business_name":"Curl Test Stall","owner_name":"Test Owner",
     "phone_number":"0999000001","market_id":1,"business_type_id":1,
@@ -36,6 +40,14 @@ curl -s -b admin.jar -H 'Content-Type: application/json' -X POST \
 VENDOR=$(curl -s -b admin.jar "$BASE/api/vendors?search=Curl%20Test%20Stall" \
   | sed -n 's/.*"vendor_number":"\(V-[0-9]*\)".*/\1/p' | head -1)
 echo "new vendor = $VENDOR"
+
+# --- 1b. Separation of duties: the Administrator cannot do field work ---------
+curl -s -o /dev/null -w '%{http_code}\n' -b admin.jar -H 'Content-Type: application/json' -X POST \
+  "$BASE/api/vendors" -d '{"business_name":"Admin Attempt","owner_name":"N/A","phone_number":"0999000000","market_id":1,"business_type_id":1}'
+# → 403 administrators cannot enrol vendors
+curl -s -o /dev/null -w '%{http_code}\n' -b admin.jar -H 'Content-Type: application/json' -X POST \
+  "$BASE/api/payments" -d '{"vendor_number":"V-01001","amount":300,"payment_channel":"Cash"}'
+# → 403 administrators cannot record payments (cash is a field capability)
 
 # --- 2. The registered vendor appears on the Live Map with its coordinates ----
 curl -s -b admin.jar "$BASE/api/map" | grep "\"vendor_number\":\"$VENDOR\""
@@ -70,8 +82,8 @@ curl -s -b admin.jar "$BASE/api/dashboard" \
 curl -s -b coll.jar "$BASE/api/payments/verify?vendor_number=$VENDOR"
 # ✔ vendor.paid_today = true, today_payment populated, history present
 
-# --- 8. Mobile-money flow (Airtel) — initiate, then confirm via webhook -------
-curl -s -b admin.jar -H 'Content-Type: application/json' -X POST \
+# --- 8. Mobile-money flow (Airtel) — supervisor initiates, webhook confirms ---
+curl -s -b sup.jar -H 'Content-Type: application/json' -X POST \
   "$BASE/api/payments" \
   -d "{\"vendor_number\":\"V-01001\",\"amount\":300,\"payment_channel\":\"AirtelMoney\"}"
 # → status "Pending" with a transaction_ref AM-… ; the dot stays RED until confirmation
@@ -82,9 +94,15 @@ curl -s -X POST "$BASE/api/webhook/airtel" -H 'Content-Type: application/json' \
 
 # --- 9. Reports & audit record everything -------------------------------------
 curl -s -b admin.jar "$BASE/api/reports/daily" | head -c 400
+curl -s -b admin.jar "$BASE/api/reports/summary?type=monthly" | head -c 400
 curl -s -b admin.jar "$BASE/api/audit-logs?action=PAYMENT&limit=3" | head -c 400
-# ✔ Daily report totals include the cash + wallet payments; audit logs show
+# ✔ Daily/monthly totals include the cash + wallet payments; audit logs show
 #   the registration (action=CREATE) and both payment rows.
+
+# --- 10. Download a report (CSV, opens in Excel; print view saves as PDF) -----
+curl -s -b admin.jar -D - -o monthly.csv "$BASE/api/reports/export?type=monthly" | head -5
+# ✔ Content-Type: text/csv, Content-Disposition: attachment; filename="msika-monthly-revenue.csv"
+head -8 monthly.csv
 ```
 
 Use fresh vendor numbers / refs when re-running — payments are one-per-vendor-per-day.

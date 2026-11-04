@@ -1,8 +1,10 @@
 "use client";
 
-// Live geo-fence monitor for Limbe Market.
-// The map is LOCKED to the Limbe Market boundary: no scrolling away, tight
-// zoom bounds, and a shaded fence so collectors always see the market only.
+// Live geo-reference monitor for Limbe Market.
+// Every dot is drawn at the EXACT GPS coordinates captured at registration —
+// nothing is snapped, shifted or hidden. The market outline is a light
+// reference layer so staff can see at a glance who trades inside the market
+// grounds and who was recorded outside them (flagged, never moved).
 // Unpaid vendors are attention-grabbing pulsing red dots with stall labels;
 // the side panel traces every unpaid stall for one-tap follow-up.
 
@@ -22,13 +24,14 @@ interface VendorDot {
   lng: number;
   paid_today: boolean;
   dot: "red" | "green";
+  inside_market: boolean;
 }
 
 interface MapData {
   center: { lat: number; lng: number };
   boundary: { lat: number; lng: number }[];
   vendors: VendorDot[];
-  stats: { total: number; paid: number; unpaid: number; compliance: number };
+  stats: { total: number; paid: number; unpaid: number; outside: number; compliance: number };
 }
 
 type FilterKey = "all" | "paid" | "unpaid";
@@ -39,6 +42,8 @@ const GREEN = "#22c55e";
 export default function LiveMapPage() {
   const { user } = useAuth();
   const isCollector = user?.role === "Collector";
+  // Administrators oversee; cash collection belongs to field staff.
+  const canCollect = user?.role === "Collector" || user?.role === "Supervisor";
 
   const [data, setData] = useState<MapData | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -130,12 +135,12 @@ export default function LiveMapPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Navigation size={20} className="text-[#3d5a45]" />
-            {isCollector ? "Trace Unpaid Stalls" : "Limbe Market Geo-Fence"}
+            {isCollector ? "Trace Unpaid Stalls" : "Limbe Market Geo-Reference"}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {isCollector
               ? "Pulsing red dots are stalls that have not paid — tap one to record their fee"
-              : "The map is locked to the market boundary — every dot is a stall inside the fence"}
+              : "Every dot sits at the exact GPS recorded at registration — the outline is the market area for reference only"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -190,19 +195,20 @@ export default function LiveMapPage() {
               <mapLib.reactLeaflet.MapContainer
                 center={[data.center.lat, data.center.lng]}
                 zoom={17}
-                minZoom={16}
+                minZoom={15}
                 maxZoom={19}
                 zoomControl={false}
                 scrollWheelZoom
                 doubleClickZoom="center"
-                // Lock the view to the market area — no wandering off
+                // Wide bounds so stalls recorded outside the market outline
+                // are reachable — the map follows the data, not the fence.
                 maxBounds={
                   [
-                    [data.center.lat - 0.004, data.center.lng - 0.004],
-                    [data.center.lat + 0.004, data.center.lng + 0.004],
+                    [data.center.lat - 0.03, data.center.lng - 0.03],
+                    [data.center.lat + 0.03, data.center.lng + 0.03],
                   ] as [number, number][]
                 }
-                maxBoundsViscosity={1.0}
+                maxBoundsViscosity={0.6}
                 style={{ height: "100%", width: "100%", background: "#e8ecea" }}
               >
                 {satellite ? (
@@ -217,15 +223,15 @@ export default function LiveMapPage() {
                   />
                 )}
 
-                {/* Geo-fence: shaded market boundary */}
+                {/* Market area reference outline — context only, never a cage */}
                 <mapLib.reactLeaflet.Polygon
                   positions={data.boundary.map((p) => [p.lat, p.lng] as [number, number])}
                   pathOptions={{
                     color: "#3d5a45",
-                    weight: 3,
+                    weight: 2,
                     fillColor: "#3d5a45",
-                    fillOpacity: 0.07,
-                    dashArray: "1",
+                    fillOpacity: 0.04,
+                    dashArray: "6 6",
                   }}
                 />
 
@@ -237,10 +243,9 @@ export default function LiveMapPage() {
                     vendor={v}
                     isPaying={paying === v.vendor_number}
                     isSelected={selected === v.vendor_number}
-                    onSelect={() => {
-                      setSelected(v.vendor_number);
-                      recordPayment(v.vendor_number, v.daily_fee);
-                    }}
+                    canCollect={canCollect}
+                    onSelect={() => setSelected(v.vendor_number)}
+                    onPay={() => recordPayment(v.vendor_number, v.daily_fee)}
                   />
                 ))}
               </mapLib.reactLeaflet.MapContainer>
@@ -261,6 +266,14 @@ export default function LiveMapPage() {
                 <div className="px-3 py-1.5 rounded-full bg-[#0E0E0B]/90 text-white shadow-md text-xs font-semibold inline-flex items-center gap-1.5">
                   <Crosshair size={12} className="text-[#AFE607]" /> {data.stats.compliance}% compliance
                 </div>
+                {data.stats.outside > 0 && (
+                  <div
+                    className="px-3 py-1.5 rounded-full bg-amber-500/95 text-white shadow-md text-xs font-semibold inline-flex items-center gap-1.5"
+                    title="Recorded outside the market outline — reported for review, not moved"
+                  >
+                    <AlertTriangle size={12} /> {data.stats.outside} outside outline
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -276,9 +289,12 @@ export default function LiveMapPage() {
               Not paid (pulsing)
             </span>
             <span className="inline-flex items-center gap-2 text-xs text-gray-600">
-              <span className="w-3 h-3 border-2 border-dashed border-[#3d5a45] rounded" /> Limbe Market boundary
+              <span className="w-3 h-3 border-2 border-dashed border-[#3d5a45] rounded" /> Market outline (reference)
             </span>
-            <span className="ml-auto text-[11px] text-gray-400">View locked to the market fence • refreshes every 30s</span>
+            <span className="inline-flex items-center gap-2 text-xs text-gray-600">
+              <span className="w-3 h-3 rounded-full bg-amber-400 ring-2 ring-amber-200" /> Outside outline
+            </span>
+            <span className="ml-auto text-[11px] text-gray-400">Dots at exact recorded GPS • refreshes every 30s</span>
           </div>
         </div>
 
@@ -316,9 +332,9 @@ export default function LiveMapPage() {
                   </div>
                   <button
                     onClick={() => recordPayment(v.vendor_number, v.daily_fee)}
-                    disabled={paying === v.vendor_number}
-                    className="mt-0.5 inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors shrink-0"
-                    title="Record cash payment"
+                    disabled={!canCollect || paying === v.vendor_number}
+                    className="mt-0.5 inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold rounded-lg transition-colors shrink-0"
+                    title={canCollect ? "Record cash payment" : "Administrators cannot record payments"}
                   >
                     {paying === v.vendor_number ? (
                       <Loader2 size={11} className="animate-spin" />
@@ -354,16 +370,21 @@ function MapDot({
   vendor,
   isPaying,
   isSelected,
+  canCollect,
   onSelect,
+  onPay,
 }: {
   reactLeaflet: typeof import("react-leaflet");
   vendor: VendorDot;
   isPaying: boolean;
   isSelected: boolean;
+  canCollect: boolean;
   onSelect: () => void;
+  onPay: () => void;
 }) {
   const { CircleMarker, Popup, Tooltip } = reactLeaflet;
   const color = vendor.dot === "green" ? GREEN : RED;
+  const outside = vendor.inside_market === false;
 
   return (
     <>
@@ -381,8 +402,10 @@ function MapDot({
         center={[vendor.lat, vendor.lng]}
         radius={isSelected ? 10 : 8}
         pathOptions={{
-          color: "#fff",
-          weight: isSelected ? 3 : 2,
+          // Outside-outline stalls carry an amber ring so the exact position
+          // is visible without hiding that it was recorded off the market.
+          color: outside ? "#f59e0b" : "#fff",
+          weight: outside ? 3 : isSelected ? 3 : 2,
           fillColor: color,
           fillOpacity: 0.95,
           className: vendor.dot === "green" ? "msika-pop" : undefined,
@@ -395,6 +418,7 @@ function MapDot({
           <br />
           <span style={{ fontSize: 11, color: "#555" }}>
             {vendor.vendor_number} • {vendor.dot === "green" ? "PAID ✓" : "NOT PAID"}
+            {outside ? " • OUTSIDE OUTLINE" : ""}
           </span>
         </Tooltip>
 
@@ -420,9 +444,14 @@ function MapDot({
             >
               {vendor.dot === "green" ? "● PAID TODAY" : "● NOT PAID TODAY"}
             </p>
-            {vendor.dot === "red" && (
+            <p style={{ fontSize: 10, color: "#6b7280", marginBottom: 8 }}>
+              {outside ? "Recorded outside the market outline — review location" : "Inside market outline"}
+              <br />
+              {vendor.lat.toFixed(6)}, {vendor.lng.toFixed(6)}
+            </p>
+            {vendor.dot === "red" && canCollect && (
               <button
-                onClick={onSelect}
+                onClick={onPay}
                 disabled={isPaying}
                 style={{
                   width: "100%",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Search, Plus, Shield, MapPin, Store, Trash2, UserCog, Loader2 } from "lucide-react";
+import ResetPasswordButton from "@/components/dashboard/ResetPasswordButton";
 
 interface Supervisor {
   supervisor_id: number;
@@ -169,15 +170,24 @@ export default function SupervisorsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      {s.is_active && (
-                        <button
-                          onClick={() => deleteSupervisor(s)}
-                          title="Remove supervisor"
-                          className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {s.is_active && (
+                          <ResetPasswordButton
+                            username={s.username}
+                            fullName={s.full_name}
+                            label="Reset"
+                          />
+                        )}
+                        {s.is_active && (
+                          <button
+                            onClick={() => deleteSupervisor(s)}
+                            title="Remove supervisor"
+                            className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

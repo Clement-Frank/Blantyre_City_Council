@@ -12,12 +12,13 @@ import {
   MapPinned,
   TrendingUp,
   TrendingDown,
-  Smartphone,
-  Banknote,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/capabilities";
 import MarketFocusCard from "@/components/dashboard/MarketFocusCard";
 import RecentPayments from "@/components/dashboard/RecentPayments";
+import ChannelMixCards from "@/components/dashboard/ChannelMixCards";
 
 interface DashStats {
   total_vendors: number;
@@ -33,19 +34,6 @@ interface DashStats {
   new_vendors_week: number;
   collection_rate: number;
 }
-
-interface ChannelMix {
-  channel: string;
-  count: number;
-  amount: number;
-}
-
-const CHANNEL_META: Record<string, { label: string; icon: React.ElementType; color: string; logo?: string }> = {
-  Cash: { label: "Cash (collector)", icon: Banknote, color: "#f59e0b" },
-  AirtelMoney: { label: "Airtel Money", icon: Smartphone, color: "#e40000", logo: "/brands/airtel.png" },
-  TNMMpamba: { label: "TNM Mpamba", icon: Smartphone, color: "#00a0a0", logo: "/brands/tnm.png" },
-  Bank: { label: "Bank", icon: Banknote, color: "#3b82f6" },
-};
 
 function ComplianceRing({ pct }: { pct: number }) {
   const r = 52;
@@ -106,7 +94,8 @@ function useCountUp(target: number, duration = 900) {
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashStats | null>(null);
-  const [channels, setChannels] = useState<ChannelMix[]>([]);
+  const canCollect = can(user?.role, "record_payment");
+  const canEnrol = can(user?.role, "register_vendor");
 
   useEffect(() => {
     const load = () =>
@@ -116,26 +105,6 @@ export default function AdminDashboard() {
         .catch(() => {});
     load();
     const t = setInterval(load, 60000);
-
-    // Channel mix from the latest payments (realtime wallet + cash feed)
-    fetch("/api/payments?limit=200")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        const payments = (d?.payments ?? []) as {
-          payment_channel: string;
-          amount: string | number;
-        }[];
-        const map = new Map<string, ChannelMix>();
-        for (const p of payments) {
-          const cur = map.get(p.payment_channel) ?? { channel: p.payment_channel, count: 0, amount: 0 };
-          cur.count += 1;
-          cur.amount += Number(p.amount);
-          map.set(p.payment_channel, cur);
-        }
-        setChannels([...map.values()].sort((a, b) => b.amount - a.amount));
-      })
-      .catch(() => {});
-
     return () => clearInterval(t);
   }, []);
 
@@ -208,20 +177,32 @@ export default function AdminDashboard() {
                 <MapPinned size={16} />
                 Open Live Map
               </Link>
-              <Link
-                href="/dashboard/vendors/new"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A16] hover:bg-[#2A2A24] border border-[#2A2A24] text-white text-sm font-medium rounded-xl transition-all"
-              >
-                <UserPlus size={16} />
-                Register Vendor
-              </Link>
-              <Link
-                href="/dashboard/payments"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A16] hover:bg-[#2A2A24] border border-[#2A2A24] text-white text-sm font-medium rounded-xl transition-all"
-              >
-                <Receipt size={16} />
-                Record Payment
-              </Link>
+              {canEnrol && (
+                <Link
+                  href="/dashboard/vendors/new"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A16] hover:bg-[#2A2A24] border border-[#2A2A24] text-white text-sm font-medium rounded-xl transition-all"
+                >
+                  <UserPlus size={16} />
+                  Register Vendor
+                </Link>
+              )}
+              {canCollect ? (
+                <Link
+                  href="/dashboard/payments"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A16] hover:bg-[#2A2A24] border border-[#2A2A24] text-white text-sm font-medium rounded-xl transition-all"
+                >
+                  <Receipt size={16} />
+                  Record Payment
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard/reports"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A16] hover:bg-[#2A2A24] border border-[#2A2A24] text-white text-sm font-medium rounded-xl transition-all"
+                >
+                  <BarChart3 size={16} />
+                  View Reports
+                </Link>
+              )}
             </div>
           </div>
 
@@ -251,44 +232,8 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {/* ===== How the money arrives ===== */}
-      {channels.length > 0 && (
-        <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-          {channels.slice(0, 5).map((ch) => {
-            const meta = CHANNEL_META[ch.channel] ?? {
-              label: ch.channel,
-              icon: Banknote,
-              color: "#6b7280",
-            };
-            const Icon = meta.icon;
-            return (
-              <div
-                key={ch.channel}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-2.5 mb-2">
-                  {meta.logo ? (
-                    <div className="w-10 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={meta.logo} alt={meta.label} className="max-h-6 max-w-[36px] object-contain" />
-                    </div>
-                  ) : (
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
-                    >
-                      <Icon size={15} />
-                    </div>
-                  )}
-                  <p className="text-xs font-semibold text-gray-700 leading-tight">{meta.label}</p>
-                </div>
-                <p className="text-lg font-extrabold text-gray-900">{mwk(ch.amount)}</p>
-                <p className="text-[11px] text-gray-400">{ch.count} payments</p>
-              </div>
-            );
-          })}
-        </section>
-      )}
+      {/* ===== How the money arrives (animated channel cards) ===== */}
+      <ChannelMixCards />
 
       {/* ===== Market focus (market growth now lives in the Markets module) ===== */}
       <MarketFocusCard />

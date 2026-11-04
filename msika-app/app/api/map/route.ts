@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { getScope, businessScopeFilter } from "@/lib/permissions";
-import { LIMBE_MARKET_BOUNDARY, LIMBE_MARKET_CENTER } from "@/lib/geofence";
+import { LIMBE_MARKET_BOUNDARY, LIMBE_MARKET_CENTER, checkGeofence } from "@/lib/geofence";
 
-// GET /api/map — vendors as red (unpaid) / green (paid) dots inside the fence
+// GET /api/map — every vendor dot sits at its EXACT recorded GPS position
+// (geo-reference). The market outline is drawn for context only: a stall is
+// never moved to fit inside it, and stalls recorded outside the outline are
+// still returned (flagged `inside_market: false`) so staff can review them.
 export async function GET(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,13 +47,16 @@ export async function GET(request: NextRequest) {
         lng: Number(b.gps_longitude),
         status: b.status,
         paid_today: paidToday,
-        // red = unpaid, green = paid
+        // red = unpaid, green = paid — the dot is placed at the exact
+        // registered coordinates, never snapped into the market outline.
         dot: paidToday ? "green" : "red",
+        inside_market: checkGeofence({ lat: Number(b.gps_latitude), lng: Number(b.gps_longitude) }).inside,
       };
     })
     .filter((v) => (filter === "paid" ? v.paid_today : filter === "unpaid" ? !v.paid_today : true));
 
   const greenCount = vendors.filter((v) => v.paid_today).length;
+  const outsideCount = vendors.filter((v) => !v.inside_market).length;
 
   return NextResponse.json({
     center: LIMBE_MARKET_CENTER,
@@ -60,6 +66,7 @@ export async function GET(request: NextRequest) {
       total: vendors.length,
       paid: greenCount,
       unpaid: vendors.length - greenCount,
+      outside: outsideCount,
       compliance: vendors.length ? Math.round((greenCount / vendors.length) * 100) : 0,
     },
   });

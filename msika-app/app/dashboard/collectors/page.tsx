@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, Phone, MapPin, UserCheck, TrendingUp, Wallet } from "lucide-react";
 import Link from "next/link";
+import ResetPasswordButton from "@/components/dashboard/ResetPasswordButton";
 
 interface Collector {
   collector_id: number;
@@ -109,16 +110,17 @@ export default function CollectorsPage() {
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Payments</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Cash Collected</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
+                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">Loading collectors...</td>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">Loading collectors...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">No collectors found</td>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">No collectors found</td>
                 </tr>
               ) : (
                 filtered.map((c) => (
@@ -155,6 +157,9 @@ export default function CollectorsPage() {
                       }`}>
                         {c.is_active ? "Active" : "Inactive"}
                       </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <ResetPasswordButton username={c.username} fullName={c.full_name} />
                     </td>
                   </tr>
                 ))
