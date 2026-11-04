@@ -111,7 +111,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 text-center">
-          <p className="text-[11px] text-white/30">2024 Blantyre City Council. All rights reserved.</p>
+          <p className="text-[11px] text-white/30">2026 Blantyre City Council. All rights reserved.</p>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function LoginPage() {
             </div>
 
             <div className="text-[9px] text-white/30">
-              <p>2024 Blantyre City Council</p>
+              <p>2026 Blantyre City Council</p>
               <p>Powered by The Malawi Government</p>
             </div>
           </div>
